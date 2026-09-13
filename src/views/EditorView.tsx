@@ -245,6 +245,12 @@ export const EditorView: React.FC<EditorViewProps> = ({
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    // Prevent dropping coils or output modules into a contact branch
+    if (elementData.category && ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol'].includes(elementData.category)) {
+      alert("Hiba: Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
+      return;
+    }
+
     const newElement: LadderElement = {
       id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: elementData.type || 'NO_CONTACT',
@@ -282,6 +288,12 @@ export const EditorView: React.FC<EditorViewProps> = ({
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    // Prevent dropping input contacts into the output (coil) area
+    if (elementData.category && ['contact', 'variable_op', 'variable'].includes(elementData.category)) {
+      alert("Hiba: Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
+      return;
+    }
+
     const newElement: LadderElement = {
       id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: elementData.type || 'COIL_NORMAL',

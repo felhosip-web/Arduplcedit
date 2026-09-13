@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
-import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle } from 'lucide-react';
+import { validateRungs } from '../utils/validationUtils';
 
 interface LadderCanvasProps {
   rungs: Rung[];
@@ -86,6 +87,8 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
     }
   };
 
+  const validationErrors = useMemo(() => validateRungs(rungs), [rungs]);
+
   return (
     <div className="flex-1 bg-slate-950 overflow-y-auto p-6 relative select-none">
       {/* Background Subtle Grid Pattern */}
@@ -146,6 +149,9 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                   : !!simulationState.activeRungs[rung.id]
               );
 
+            const rungErrors = validationErrors.filter(e => e.rungId === rung.id);
+            const hasErrors = rungErrors.length > 0;
+
             return (
               <div
                 key={rung.id}
@@ -153,6 +159,8 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                 className={`rounded-xl border transition-all ${
                   isSelected
                     ? 'border-sky-500 bg-slate-900/90 shadow-lg shadow-sky-500/10'
+                    : hasErrors
+                    ? 'border-rose-500/50 bg-rose-950/20 hover:border-rose-500/80'
                     : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
                 }`}
               >
@@ -197,6 +205,24 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                         <MessageSquare className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span className="truncate">{rung.comment || 'Megjegyzés hozzáadása...'}</span>
                       </div>
+                    )}
+
+                    {hasErrors && (
+                       <div className="flex flex-col ml-2 group relative">
+                         <div className="flex items-center gap-1 text-rose-400">
+                           <AlertTriangle className="w-4 h-4" />
+                           <span className="font-bold text-xs">{rungErrors.length} Hiba</span>
+                         </div>
+                         {/* Tooltip on hover */}
+                         <div className="hidden group-hover:flex absolute top-full left-0 mt-1 flex-col gap-1 z-50 bg-rose-950 border border-rose-800 p-2 rounded shadow-xl w-64 text-rose-200 text-[10px]">
+                           {rungErrors.map((err, i) => (
+                             <div key={i} className="flex gap-1.5">
+                               <span className="shrink-0">•</span>
+                               <span>{err.message}</span>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
                     )}
                   </div>
 
