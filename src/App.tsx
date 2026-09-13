@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Rung,
   LadderElement,
@@ -458,19 +458,19 @@ export default function App() {
   };
 
   // Reset simulation states
-  const handleResetSimulation = () => {
+  const handleResetSimulation = useCallback(() => {
     setSimulationState({
       ...INITIAL_SIMULATION_STATE,
       hasExecutedSetup: false,
       activeSetupRungs: {},
       isRunning: false
     });
-  };
+  }, []);
 
   // Single step simulation scan
-  const handleStepSimulation = () => {
+  const handleStepSimulation = useCallback(() => {
     setSimulationState((prev) => runSimulationStep(rungs, prev, 20, subroutines, setupRungs, interrupts, protocols));
-  };
+  }, [rungs, subroutines, setupRungs, interrupts, protocols]);
 
   // Digital and Analog input controls
   const handleToggleDigitalInput = (pin: string) => {
@@ -795,12 +795,12 @@ export default function App() {
   };
 
   // Inspect Element
-  const handleSelectElement = (el: LadderElement) => {
+  const handleSelectElement = useCallback((el: LadderElement) => {
     setSelectedElement(el);
     setIsInspectorOpen(true);
-  };
+  }, []);
 
-  const handleSaveElement = (updatedElement: LadderElement) => {
+  const handleSaveElement = useCallback((updatedElement: LadderElement) => {
     if (activeSubroutineId) {
       // Update in active subroutine
       const sub = subroutines.find((s) => s.id === activeSubroutineId);
@@ -841,10 +841,10 @@ export default function App() {
     }
     setIsInspectorOpen(false);
     setSelectedElement(null);
-  };
+  }, [activeSubroutineId, subroutines, setSubroutines, rungs, setRungs, setupRungs, setSetupRungs]);
 
   // Rebind physical hardware pin for an element (from Hardware Map)
-  const handleUpdateElementPin = (elementId: string, newPin: string) => {
+  const handleUpdateElementPin = useCallback((elementId: string, newPin: string) => {
     // 1. Update in Main Rungs
     setRungs((prevRungs) =>
       prevRungs.map((r) => ({
@@ -883,14 +883,14 @@ export default function App() {
         }))
       }))
     );
-  };
+  }, [setRungs, setSetupRungs, setSubroutines]);
 
   // Bind physical pin directly to a PLC process variable
-  const handleUpdateVariablePin = (variableName: string, newPin: string) => {
+  const handleUpdateVariablePin = useCallback((variableName: string, newPin: string) => {
     setVariables((prevVars) =>
       prevVars.map((v) => (v.name === variableName ? { ...v, mappedPin: newPin } : v))
     );
-  };
+  }, []);
 
   // Examples loading
   const handleLoadExample = (example: ExampleProject) => {

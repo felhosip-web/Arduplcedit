@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
 import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle } from 'lucide-react';
-import { validateRungs } from '../utils/validationUtils';
+import { validateRungs, ValidationError } from '../utils/validationUtils';
 
 interface LadderCanvasProps {
   rungs: Rung[];
@@ -24,6 +24,415 @@ interface LadderCanvasProps {
   onTunePid?: (el: LadderElement) => void;
 }
 
+// --- Inner Memoized Component for each Rung (Virtualization/Memoization) ---
+interface RungRowProps {
+  rung: Rung;
+  rIndex: number;
+  isSelected: boolean;
+  simulationState: SimulationState;
+  isSetupSection: boolean;
+  validationErrors: ValidationError[];
+  onSelectRung: (index: number) => void;
+  onSelectElement: (el: LadderElement) => void;
+  onDeleteElement: (id: string) => void;
+  onMoveRung: (id: string, direction: 'up' | 'down') => void;
+  onUpdateRungComment: (id: string, comment: string) => void;
+  onAddParallelBranch: (rungId: string) => void;
+  onDeleteParallelBranch: (rungId: string, branchId: string) => void;
+  onDropElementOnBranch: (rungId: string, branchId: string, insertIndex: number, elementData: Partial<LadderElement>) => void;
+  onDropElementOnCoils: (rungId: string, insertIndex: number, elementData: Partial<LadderElement>) => void;
+  onDragOver: (e: React.DragEvent, targetId: string) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  dragOverTarget: string | null;
+  onDuplicateRung: (id: string) => void;
+  onDeleteRung: (id: string) => void;
+  onTunePid?: (el: LadderElement) => void;
+  totalRungsCount: number;
+}
+
+const RungRow: React.FC<RungRowProps> = React.memo(({
+  rung,
+  rIndex,
+  isSelected,
+  simulationState,
+  isSetupSection,
+  validationErrors,
+  onSelectRung,
+  onSelectElement,
+  onDeleteElement,
+  onMoveRung,
+  onUpdateRungComment,
+  onAddParallelBranch,
+  onDeleteParallelBranch,
+  onDropElementOnBranch,
+  onDropElementOnCoils,
+  onDragOver,
+  onDragLeave,
+  dragOverTarget,
+  onDuplicateRung,
+  onDeleteRung,
+  onTunePid,
+  totalRungsCount
+}) => {
+  const [isVisible, setIsVisible] = useState(true);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [editingCommentRungId, setEditingCommentRungId] = useState<string | null>(null);
+
+  // Intersection Observer for Virtualization
+  useEffect(() => {
+    if (!rowRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsVisible(entry.isIntersecting);
+        });
+      },
+      { rootMargin: '200px 0px' }
+    );
+    observer.observe(rowRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Use a fixed height placeholder if the rung is off-screen
+  if (!isVisible) {
+    return (
+      <div ref={rowRef} className="h-32 bg-slate-900/20 border border-slate-800 rounded-xl mb-6"></div>
+    );
+  }
+
+  const isRungEnergized = simulationState.isRunning && (
+    isSetupSection
+      ? (!!simulationState.activeSetupRungs?.[rung.id] || !!simulationState.activeRungs[rung.id])
+      : !!simulationState.activeRungs[rung.id]
+  );
+
+  const rungErrors = validationErrors.filter((e) => e.rungId === rung.id);
+  const hasErrors = rungErrors.length > 0;
+
+  const handleDropOnBranchLocal = (e: React.DragEvent, branchId: string, insertIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const dataStr = e.dataTransfer.getData('application/json');
+      if (dataStr) {
+        const elementData = JSON.parse(dataStr);
+        onDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
+    }
+  };
+
+  const handleDropOnCoilsLocal = (e: React.DragEvent, insertIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const dataStr = e.dataTransfer.getData('application/json');
+      if (dataStr) {
+        const elementData = JSON.parse(dataStr);
+        onDropElementOnCoils(rung.id, insertIndex, elementData);
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
+    }
+  };
+
+  return (
+    <div
+      ref={rowRef}
+      onClick={() => onSelectRung(rIndex)}
+      className={`rounded-xl border transition-all ${
+        isSelected
+          ? 'border-sky-500 bg-slate-900/90 shadow-lg shadow-sky-500/10'
+          : hasErrors
+          ? 'border-rose-500/50 bg-rose-950/20 hover:border-rose-500/80'
+          : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+      }`}
+    >
+      {/* Rung Header */}
+      <div className="px-4 py-2.5 bg-slate-950/80 border-b border-slate-800 rounded-t-xl flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 flex-1">
+          <span className={`px-2 py-0.5 rounded font-mono font-bold text-xs ${
+            isRungEnergized
+              ? 'bg-emerald-500 text-slate-950 shadow-[0_0_8px_#10b981]'
+              : isSelected
+              ? 'bg-sky-500 text-slate-950'
+              : 'bg-slate-800 text-slate-300'
+          }`}>
+            #{rung.number}
+          </span>
+
+          {/* Inline Comment */}
+          {editingCommentRungId === rung.id ? (
+            <input
+              type="text"
+              autoFocus
+              defaultValue={rung.comment || ''}
+              onBlur={(e) => {
+                onUpdateRungComment(rung.id, e.target.value);
+                setEditingCommentRungId(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onUpdateRungComment(rung.id, (e.target as HTMLInputElement).value);
+                  setEditingCommentRungId(null);
+                }
+              }}
+              placeholder="Megjegyzés a fokhoz..."
+              className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-md focus:outline-none focus:border-sky-500"
+            />
+          ) : (
+            <div
+              onClick={() => setEditingCommentRungId(rung.id)}
+              className="text-slate-400 hover:text-slate-200 cursor-pointer flex items-center gap-1.5 truncate max-w-md"
+              title="Kattints a megjegyzés szerkesztéséhez"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="truncate">{rung.comment || 'Megjegyzés hozzáadása...'}</span>
+            </div>
+          )}
+
+          {hasErrors && (
+             <div className="flex flex-col ml-2 group relative">
+               <div className="flex items-center gap-1 text-rose-400">
+                 <AlertTriangle className="w-4 h-4" />
+                 <span className="font-bold text-xs">{rungErrors.length} Hiba</span>
+               </div>
+               {/* Tooltip on hover */}
+               <div className="hidden group-hover:flex absolute top-full left-0 mt-1 flex-col gap-1 z-50 bg-rose-950 border border-rose-800 p-2 rounded shadow-xl w-64 text-rose-200 text-[10px]">
+                 {rungErrors.map((err, i) => (
+                   <div key={i} className="flex gap-1.5">
+                     <span className="shrink-0">•</span>
+                     <span>{err.message}</span>
+                   </div>
+                 ))}
+               </div>
+             </div>
+          )}
+        </div>
+
+        {/* Rung Actions */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddParallelBranch(rung.id);
+            }}
+            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-sky-300 rounded text-[11px] flex items-center gap-1 border border-slate-700 transition-colors"
+            title="Párhuzamos ág (VAGY / OR logika) hozzáadása"
+          >
+            <Split className="w-3 h-3" /> + Ág (OR)
+          </button>
+
+          <button
+            type="button"
+            disabled={rIndex === 0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveRung(rung.id, 'up');
+            }}
+            className="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded transition-colors"
+            title="Fok mozgatása feljebb"
+          >
+            <ArrowUp className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            disabled={rIndex === totalRungsCount - 1}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveRung(rung.id, 'down');
+            }}
+            className="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded transition-colors"
+            title="Fok mozgatása lejjebb"
+          >
+            <ArrowDown className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDuplicateRung(rung.id);
+            }}
+            className="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded transition-colors"
+            title="Fok duplikálása"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            disabled={totalRungsCount <= 1}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteRung(rung.id);
+            }}
+            className="p-1 hover:bg-rose-950/80 text-slate-400 hover:text-rose-400 disabled:opacity-30 rounded transition-colors"
+            title="Fok törlése"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Rung Schematic Body */}
+      <div className="p-4 flex items-center min-h-[110px] overflow-x-auto">
+        {/* Left Connection from Live Rail */}
+        <div className="flex items-center shrink-0">
+          <span className={`w-4 h-1 rounded-l ${
+            simulationState.isRunning ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-rose-500'
+          }`} />
+        </div>
+
+        {/* Parallel Branches (Left / Contacts Section) */}
+        <div className="flex flex-col gap-3 flex-1 min-w-[280px]">
+          {rung.branches.map((branch, bIndex) => {
+            const isBranchEnergized = simulationState.isRunning && !!simulationState.activeBranches[branch.id];
+
+            return (
+              <div key={branch.id} className="flex items-center relative py-1">
+                {/* Branch Wire Lead */}
+                <div className={`w-3 h-0.5 shrink-0 ${
+                  isBranchEnergized ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-600'
+                }`} />
+
+                {/* Branch Elements in Series */}
+                <div className="flex items-center flex-wrap gap-1">
+                  {/* Drop zone before first element */}
+                  <div
+                    onDragOver={(e) => onDragOver(e, `${branch.id}_drop_0`)}
+                    onDragLeave={onDragLeave}
+                    onDrop={(e) => handleDropOnBranchLocal(e, branch.id, 0)}
+                    className={`w-4 h-9 rounded flex items-center justify-center transition-all ${
+                      dragOverTarget === `${branch.id}_drop_0`
+                        ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110'
+                        : 'hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <div className={`w-full h-0.5 ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  </div>
+
+                  {branch.elements.map((el, elIndex) => (
+                    <React.Fragment key={el.id}>
+                      <ElementBlock
+                        element={el}
+                        isActive={simulationState.activeElements[el.id]}
+                        isSimulating={simulationState.isRunning}
+                        timerState={el.variable ? simulationState.timerStates[el.variable] : undefined}
+                        counterState={el.variable ? simulationState.counterStates[el.variable] : undefined}
+                        onSelect={onSelectElement}
+                        onDelete={onDeleteElement}
+                        onTunePid={onTunePid}
+                      />
+
+                      {/* Connecting Wire & Drop zone between elements */}
+                      <div
+                        onDragOver={(e) => onDragOver(e, `${branch.id}_drop_${elIndex + 1}`)}
+                        onDragLeave={onDragLeave}
+                        onDrop={(e) => handleDropOnBranchLocal(e, branch.id, elIndex + 1)}
+                        className={`w-6 h-9 rounded flex items-center justify-center transition-all ${
+                          dragOverTarget === `${branch.id}_drop_${elIndex + 1}`
+                            ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110'
+                            : 'hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div className={`w-full h-0.5 ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                      </div>
+                    </React.Fragment>
+                  ))}
+
+                  {/* If branch is empty, show drop placeholder */}
+                  {branch.elements.length === 0 && (
+                    <div
+                      onDragOver={(e) => onDragOver(e, `${branch.id}_empty`)}
+                      onDragLeave={onDragLeave}
+                      onDrop={(e) => handleDropOnBranchLocal(e, branch.id, 0)}
+                      className={`px-4 py-2 border-2 border-dashed rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
+                        dragOverTarget === `${branch.id}_empty`
+                          ? 'border-sky-400 bg-sky-950/40 text-sky-300'
+                          : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'
+                      }`}
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Húzz ide érintkezőt
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete parallel branch if more than 1 */}
+                {rung.branches.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteParallelBranch(rung.id, branch.id)}
+                    className="ml-2 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px]"
+                    title="Párhuzamos ág törlése"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Connecting Wire between contacts and coils */}
+        <div className="flex-1 flex items-center min-w-[24px]">
+          <div className={`w-full h-0.5 transition-colors ${
+            isRungEnergized ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-600'
+          }`} />
+        </div>
+
+        {/* Right Side: Coils and Output Modules */}
+        <div className="flex items-center gap-2 shrink-0 pl-2">
+          {rung.coils.map((coil, cIndex) => (
+            <React.Fragment key={coil.id}>
+              <ElementBlock
+                element={coil}
+                isActive={isRungEnergized}
+                isSimulating={simulationState.isRunning}
+                timerState={coil.variable ? simulationState.timerStates[coil.variable] : undefined}
+                counterState={coil.variable ? simulationState.counterStates[coil.variable] : undefined}
+                onSelect={onSelectElement}
+                onDelete={onDeleteElement}
+                onTunePid={onTunePid}
+              />
+
+              {/* Connecting wire between multiple coils */}
+              {cIndex < rung.coils.length - 1 && (
+                <div className={`w-3 h-0.5 ${isRungEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+              )}
+            </React.Fragment>
+          ))}
+
+          {/* Drop zone to add another coil/module */}
+          <div
+            onDragOver={(e) => onDragOver(e, `${rung.id}_coils_drop`)}
+            onDragLeave={onDragLeave}
+            onDrop={(e) => handleDropOnCoilsLocal(e, rung.coils.length)}
+            className={`px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all ${
+              dragOverTarget === `${rung.id}_coils_drop`
+                ? 'border-emerald-400 bg-emerald-950/40 text-emerald-300'
+                : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'
+            }`}
+            title="Húzz ide további tekercset, időzítőt vagy könyvtár modult"
+          >
+            <Plus className="w-3 h-3" /> Kimenet
+          </div>
+        </div>
+
+        {/* Right Return to GND Rail */}
+        <div className="flex items-center shrink-0 ml-1">
+          <span className={`w-4 h-1 rounded-r ${
+            isRungEnergized ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-sky-500'
+          }`} />
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   rungs,
   simulationState,
@@ -43,49 +452,31 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   onDropElementOnCoils,
   onTunePid
 }) => {
-  const [editingCommentRungId, setEditingCommentRungId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  const dragTargetRef = useRef<string | null>(null);
+  const rafId = useRef<number | null>(null);
 
-  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+  const handleDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverTarget(targetId);
-  };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOverTarget(null);
-  };
-
-  const handleDropOnBranch = (e: React.DragEvent, rungId: string, branchId: string, insertIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverTarget(null);
-    try {
-      const dataStr = e.dataTransfer.getData('application/json');
-      if (dataStr) {
-        const elementData = JSON.parse(dataStr);
-        onDropElementOnBranch(rungId, branchId, insertIndex, elementData);
+    // Throttle the drag over target update using requestAnimationFrame
+    if (dragTargetRef.current !== targetId) {
+      dragTargetRef.current = targetId;
+      if (rafId.current === null) {
+        rafId.current = requestAnimationFrame(() => {
+          setDragOverTarget(dragTargetRef.current);
+          rafId.current = null;
+        });
       }
-    } catch (err) {
-      console.error('Drop error:', err);
     }
-  };
+  }, []);
 
-  const handleDropOnCoils = (e: React.DragEvent, rungId: string, insertIndex: number) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
+    dragTargetRef.current = null;
     setDragOverTarget(null);
-    try {
-      const dataStr = e.dataTransfer.getData('application/json');
-      if (dataStr) {
-        const elementData = JSON.parse(dataStr);
-        onDropElementOnCoils(rungId, insertIndex, elementData);
-      }
-    } catch (err) {
-      console.error('Drop error:', err);
-    }
-  };
+  }, []);
 
   const validationErrors = useMemo(() => validateRungs(rungs), [rungs]);
 
@@ -141,312 +532,33 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
               </p>
             </div>
           ) : (
-            rungs.map((rung, rIndex) => {
-              const isSelected = selectedRungIndex === rIndex;
-              const isRungEnergized = simulationState.isRunning && (
-                isSetupSection
-                  ? (!!simulationState.activeSetupRungs?.[rung.id] || !!simulationState.activeRungs[rung.id])
-                  : !!simulationState.activeRungs[rung.id]
-              );
-
-            const rungErrors = validationErrors.filter(e => e.rungId === rung.id);
-            const hasErrors = rungErrors.length > 0;
-
-            return (
-              <div
+            rungs.map((rung, rIndex) => (
+              <RungRow
                 key={rung.id}
-                onClick={() => onSelectRung(rIndex)}
-                className={`rounded-xl border transition-all ${
-                  isSelected
-                    ? 'border-sky-500 bg-slate-900/90 shadow-lg shadow-sky-500/10'
-                    : hasErrors
-                    ? 'border-rose-500/50 bg-rose-950/20 hover:border-rose-500/80'
-                    : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-                }`}
-              >
-                {/* Rung Header */}
-                <div className="px-4 py-2.5 bg-slate-950/80 border-b border-slate-800 rounded-t-xl flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className={`px-2 py-0.5 rounded font-mono font-bold text-xs ${
-                      isRungEnergized
-                        ? 'bg-emerald-500 text-slate-950 shadow-[0_0_8px_#10b981]'
-                        : isSelected
-                        ? 'bg-sky-500 text-slate-950'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}>
-                      #{rung.number}
-                    </span>
-
-                    {/* Inline Comment */}
-                    {editingCommentRungId === rung.id ? (
-                      <input
-                        type="text"
-                        autoFocus
-                        defaultValue={rung.comment || ''}
-                        onBlur={(e) => {
-                          onUpdateRungComment(rung.id, e.target.value);
-                          setEditingCommentRungId(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            onUpdateRungComment(rung.id, (e.target as HTMLInputElement).value);
-                            setEditingCommentRungId(null);
-                          }
-                        }}
-                        placeholder="Megjegyzés a fokhoz..."
-                        className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-md focus:outline-none focus:border-sky-500"
-                      />
-                    ) : (
-                      <div
-                        onClick={() => setEditingCommentRungId(rung.id)}
-                        className="text-slate-400 hover:text-slate-200 cursor-pointer flex items-center gap-1.5 truncate max-w-md"
-                        title="Kattints a megjegyzés szerkesztéséhez"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                        <span className="truncate">{rung.comment || 'Megjegyzés hozzáadása...'}</span>
-                      </div>
-                    )}
-
-                    {hasErrors && (
-                       <div className="flex flex-col ml-2 group relative">
-                         <div className="flex items-center gap-1 text-rose-400">
-                           <AlertTriangle className="w-4 h-4" />
-                           <span className="font-bold text-xs">{rungErrors.length} Hiba</span>
-                         </div>
-                         {/* Tooltip on hover */}
-                         <div className="hidden group-hover:flex absolute top-full left-0 mt-1 flex-col gap-1 z-50 bg-rose-950 border border-rose-800 p-2 rounded shadow-xl w-64 text-rose-200 text-[10px]">
-                           {rungErrors.map((err, i) => (
-                             <div key={i} className="flex gap-1.5">
-                               <span className="shrink-0">•</span>
-                               <span>{err.message}</span>
-                             </div>
-                           ))}
-                         </div>
-                       </div>
-                    )}
-                  </div>
-
-                  {/* Rung Actions */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAddParallelBranch(rung.id);
-                      }}
-                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-sky-300 rounded text-[11px] flex items-center gap-1 border border-slate-700 transition-colors"
-                      title="Párhuzamos ág (VAGY / OR logika) hozzáadása"
-                    >
-                      <Split className="w-3 h-3" /> + Ág (OR)
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={rIndex === 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveRung(rung.id, 'up');
-                      }}
-                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded transition-colors"
-                      title="Fok mozgatása feljebb"
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={rIndex === rungs.length - 1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveRung(rung.id, 'down');
-                      }}
-                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-30 rounded transition-colors"
-                      title="Fok mozgatása lejjebb"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDuplicateRung(rung.id);
-                      }}
-                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded transition-colors"
-                      title="Fok duplikálása"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={rungs.length <= 1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteRung(rung.id);
-                      }}
-                      className="p-1 hover:bg-rose-950/80 text-slate-400 hover:text-rose-400 disabled:opacity-30 rounded transition-colors"
-                      title="Fok törlése"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Rung Schematic Body */}
-                <div className="p-4 flex items-center min-h-[110px] overflow-x-auto">
-                  {/* Left Connection from Live Rail */}
-                  <div className="flex items-center shrink-0">
-                    <span className={`w-4 h-1 rounded-l ${
-                      simulationState.isRunning ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-rose-500'
-                    }`} />
-                  </div>
-
-                  {/* Parallel Branches (Left / Contacts Section) */}
-                  <div className="flex flex-col gap-3 flex-1 min-w-[280px]">
-                    {rung.branches.map((branch, bIndex) => {
-                      const isBranchEnergized = simulationState.isRunning && !!simulationState.activeBranches[branch.id];
-
-                      return (
-                        <div key={branch.id} className="flex items-center relative py-1">
-                          {/* Branch Wire Lead */}
-                          <div className={`w-3 h-0.5 shrink-0 ${
-                            isBranchEnergized ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-600'
-                          }`} />
-
-                          {/* Branch Elements in Series */}
-                          <div className="flex items-center flex-wrap gap-1">
-                            {/* Drop zone before first element */}
-                            <div
-                              onDragOver={(e) => handleDragOver(e, `${branch.id}_drop_0`)}
-                              onDragLeave={handleDragLeave}
-                              onDrop={(e) => handleDropOnBranch(e, rung.id, branch.id, 0)}
-                              className={`w-4 h-9 rounded flex items-center justify-center transition-all ${
-                                dragOverTarget === `${branch.id}_drop_0`
-                                  ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110'
-                                  : 'hover:bg-slate-800/60'
-                              }`}
-                            >
-                              <div className={`w-full h-0.5 ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                            </div>
-
-                            {branch.elements.map((el, elIndex) => (
-                              <React.Fragment key={el.id}>
-                                <ElementBlock
-                                  element={el}
-                                  isActive={simulationState.activeElements[el.id]}
-                                  isSimulating={simulationState.isRunning}
-                                  timerState={el.variable ? simulationState.timerStates[el.variable] : undefined}
-                                  counterState={el.variable ? simulationState.counterStates[el.variable] : undefined}
-                                  onSelect={onSelectElement}
-                                  onDelete={onDeleteElement}
-                                  onTunePid={onTunePid}
-                                />
-
-                                {/* Connecting Wire & Drop zone between elements */}
-                                <div
-                                  onDragOver={(e) => handleDragOver(e, `${branch.id}_drop_${elIndex + 1}`)}
-                                  onDragLeave={handleDragLeave}
-                                  onDrop={(e) => handleDropOnBranch(e, rung.id, branch.id, elIndex + 1)}
-                                  className={`w-6 h-9 rounded flex items-center justify-center transition-all ${
-                                    dragOverTarget === `${branch.id}_drop_${elIndex + 1}`
-                                      ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110'
-                                      : 'hover:bg-slate-800/60'
-                                  }`}
-                                >
-                                  <div className={`w-full h-0.5 ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                                </div>
-                              </React.Fragment>
-                            ))}
-
-                            {/* If branch is empty, show drop placeholder */}
-                            {branch.elements.length === 0 && (
-                              <div
-                                onDragOver={(e) => handleDragOver(e, `${branch.id}_empty`)}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDropOnBranch(e, rung.id, branch.id, 0)}
-                                className={`px-4 py-2 border-2 border-dashed rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
-                                  dragOverTarget === `${branch.id}_empty`
-                                    ? 'border-sky-400 bg-sky-950/40 text-sky-300'
-                                    : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'
-                                }`}
-                              >
-                                <Plus className="w-3.5 h-3.5" /> Húzz ide érintkezőt
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Delete parallel branch if more than 1 */}
-                          {rung.branches.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => onDeleteParallelBranch(rung.id, branch.id)}
-                              className="ml-2 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px]"
-                              title="Párhuzamos ág törlése"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Connecting Wire between contacts and coils */}
-                  <div className="flex-1 flex items-center min-w-[24px]">
-                    <div className={`w-full h-0.5 transition-colors ${
-                      isRungEnergized ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-600'
-                    }`} />
-                  </div>
-
-                  {/* Right Side: Coils and Output Modules */}
-                  <div className="flex items-center gap-2 shrink-0 pl-2">
-                    {rung.coils.map((coil, cIndex) => (
-                      <React.Fragment key={coil.id}>
-                        <ElementBlock
-                          element={coil}
-                          isActive={isRungEnergized}
-                          isSimulating={simulationState.isRunning}
-                          timerState={coil.variable ? simulationState.timerStates[coil.variable] : undefined}
-                          counterState={coil.variable ? simulationState.counterStates[coil.variable] : undefined}
-                          onSelect={onSelectElement}
-                          onDelete={onDeleteElement}
-                          onTunePid={onTunePid}
-                        />
-
-                        {/* Connecting wire between multiple coils */}
-                        {cIndex < rung.coils.length - 1 && (
-                          <div className={`w-3 h-0.5 ${isRungEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                        )}
-                      </React.Fragment>
-                    ))}
-
-                    {/* Drop zone to add another coil/module */}
-                    <div
-                      onDragOver={(e) => handleDragOver(e, `${rung.id}_coils_drop`)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDropOnCoils(e, rung.id, rung.coils.length)}
-                      className={`px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all ${
-                        dragOverTarget === `${rung.id}_coils_drop`
-                          ? 'border-emerald-400 bg-emerald-950/40 text-emerald-300'
-                          : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'
-                      }`}
-                      title="Húzz ide további tekercset, időzítőt vagy könyvtár modult"
-                    >
-                      <Plus className="w-3 h-3" /> Kimenet
-                    </div>
-                  </div>
-
-                  {/* Right Return to GND Rail */}
-                  <div className="flex items-center shrink-0 ml-1">
-                    <span className={`w-4 h-1 rounded-r ${
-                      isRungEnergized ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-sky-500'
-                    }`} />
-                  </div>
-                </div>
-              </div>
-            );
-          })
+                rung={rung}
+                rIndex={rIndex}
+                isSelected={selectedRungIndex === rIndex}
+                simulationState={simulationState}
+                isSetupSection={isSetupSection}
+                validationErrors={validationErrors}
+                onSelectRung={onSelectRung}
+                onSelectElement={onSelectElement}
+                onDeleteElement={onDeleteElement}
+                onMoveRung={onMoveRung}
+                onUpdateRungComment={onUpdateRungComment}
+                onAddParallelBranch={onAddParallelBranch}
+                onDeleteParallelBranch={onDeleteParallelBranch}
+                onDropElementOnBranch={onDropElementOnBranch}
+                onDropElementOnCoils={onDropElementOnCoils}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                dragOverTarget={dragOverTarget}
+                onDuplicateRung={onDuplicateRung}
+                onDeleteRung={onDeleteRung}
+                onTunePid={onTunePid}
+                totalRungsCount={rungs.length}
+              />
+            ))
         )}
         </div>
 

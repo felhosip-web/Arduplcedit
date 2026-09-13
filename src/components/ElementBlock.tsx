@@ -13,7 +13,7 @@ interface ElementBlockProps {
   onTunePid?: (el: LadderElement) => void;
 }
 
-export const ElementBlock: React.FC<ElementBlockProps> = ({
+export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   element,
   isActive,
   isSimulating,
@@ -843,4 +843,4 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
       )}
     </div>
   );
-};
+});
