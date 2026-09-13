@@ -14,6 +14,7 @@ import {
   InterruptsConfig,
   ProjectData
 } from './types';
+import { useUndoRedo } from './utils/useUndoRedo';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
@@ -221,56 +222,104 @@ export default function App() {
     return null;
   }, []);
 
-  // Main Ladder Rungs (loop() cyclic scan)
-  const [rungs, setRungs] = useState<Rung[]>(() => {
-    if (initialSavedState?.rungs?.length > 0) return initialSavedState.rungs;
-    return EXAMPLE_PROJECTS[0].rungs;
-  });
+  // Combined Ladder State for Undo/Redo
+  interface LadderState {
+    rungs: Rung[];
+    setupRungs: Rung[];
+    subroutines: Subroutine[];
+  }
 
-  // Setup Ladder Rungs (setup() runs once at boot)
-  const [setupRungs, setSetupRungs] = useState<Rung[]>(() => {
-    if (initialSavedState?.setupRungs && Array.isArray(initialSavedState.setupRungs)) {
-      return initialSavedState.setupRungs;
-    }
-    return EXAMPLE_PROJECTS[0].setupRungs || [
-      {
-        id: 'rung_setup_boot_1',
-        number: 0,
-        comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le)',
-        branches: [
+  const initialLadderState: LadderState = {
+    rungs: initialSavedState?.rungs?.length > 0 ? initialSavedState.rungs : EXAMPLE_PROJECTS[0].rungs,
+    setupRungs: (initialSavedState?.setupRungs && Array.isArray(initialSavedState.setupRungs))
+      ? initialSavedState.setupRungs
+      : (EXAMPLE_PROJECTS[0].setupRungs || [
           {
-            id: 'b_setup_boot_1',
-            elements: [
+            id: 'rung_setup_boot_1',
+            number: 0,
+            comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le)',
+            branches: [
               {
-                id: 'el_setup_boot_flag',
-                type: 'NO_CONTACT',
-                category: 'contact',
-                name: 'SYS_BOOT',
-                variable: 'V_AUTO_MODE',
-                comment: 'Boot feltétel'
+                id: 'b_setup_boot_1',
+                elements: [
+                  {
+                    id: 'el_setup_boot_flag',
+                    type: 'NO_CONTACT',
+                    category: 'contact',
+                    name: 'SYS_BOOT',
+                    variable: 'V_AUTO_MODE',
+                    comment: 'Boot feltétel'
+                  }
+                ]
+              }
+            ],
+            coils: [
+              {
+                id: 'el_setup_lcd_hello',
+                type: 'MODULE_LCD_PRINT',
+                category: 'library_module',
+                name: 'LCD BOOT',
+                lcdText: 'ARDUINO PLC OK',
+                comment: 'Kezdő üzenet LCD-re'
               }
             ]
           }
-        ],
-        coils: [
-          {
-            id: 'el_setup_lcd_hello',
-            type: 'MODULE_LCD_PRINT',
-            category: 'library_module',
-            name: 'LCD BOOT',
-            lcdText: 'ARDUINO PLC OK',
-            comment: 'Kezdő üzenet LCD-re'
-          }
-        ]
-      }
-    ];
-  });
+        ]),
+    subroutines: initialSavedState?.subroutines?.length > 0 ? initialSavedState.subroutines : DEFAULT_SUBROUTINES
+  };
 
-  // Custom Subroutines (Ladder-based Function Blocks)
-  const [subroutines, setSubroutines] = useState<Subroutine[]>(() => {
-    if (initialSavedState?.subroutines?.length > 0) return initialSavedState.subroutines;
-    return DEFAULT_SUBROUTINES;
-  });
+  const {
+    state: ladderState,
+    set: setLadderState,
+    undo: undoLadder,
+    redo: redoLadder,
+    clear: clearLadderHistory,
+    canUndo: canUndoLadder,
+    canRedo: canRedoLadder
+  } = useUndoRedo<LadderState>(initialLadderState);
+
+  const { rungs, setupRungs, subroutines } = ladderState;
+
+  // Helpers to update individual parts of the combined state
+  const setRungs = (newRungs: Rung[] | ((prev: Rung[]) => Rung[])) => {
+    setLadderState((prev) => ({
+      ...prev,
+      rungs: typeof newRungs === 'function' ? newRungs(prev.rungs) : newRungs
+    }));
+  };
+
+  const setSetupRungs = (newSetupRungs: Rung[] | ((prev: Rung[]) => Rung[])) => {
+    setLadderState((prev) => ({
+      ...prev,
+      setupRungs: typeof newSetupRungs === 'function' ? newSetupRungs(prev.setupRungs) : newSetupRungs
+    }));
+  };
+
+  const setSubroutines = (newSubs: Subroutine[] | ((prev: Subroutine[]) => Subroutine[])) => {
+    setLadderState((prev) => ({
+      ...prev,
+      subroutines: typeof newSubs === 'function' ? newSubs(prev.subroutines) : newSubs
+    }));
+  };
+
+  // Setup Keyboard Shortcuts for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z or Cmd+Z for Undo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndoLadder) undoLadder();
+      }
+      // Ctrl+Y or Cmd+Shift+Z for Redo
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedoLadder) redoLadder();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoLadder, redoLadder, canUndoLadder, canRedoLadder]);
 
   // Custom Modules & Templates
   const [customModules, setCustomModules] = useState<CustomModuleTemplate[]>(() => {
@@ -845,12 +894,11 @@ export default function App() {
 
   // Examples loading
   const handleLoadExample = (example: ExampleProject) => {
-    setRungs(example.rungs);
-    if (example.setupRungs) {
-      setSetupRungs(example.setupRungs);
-    } else {
-      setSetupRungs([]);
-    }
+    clearLadderHistory({
+      rungs: example.rungs,
+      setupRungs: example.setupRungs || [],
+      subroutines: subroutines
+    });
     setSelectedRungIndex(0);
     setActiveSubroutineId(null);
     setActivePage('editor');
@@ -898,9 +946,11 @@ export default function App() {
       try {
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
-        if (parsed.rungs) setRungs(parsed.rungs);
-        if (parsed.setupRungs) setSetupRungs(parsed.setupRungs);
-        if (parsed.subroutines) setSubroutines(parsed.subroutines);
+        clearLadderHistory({
+          rungs: parsed.rungs || [],
+          setupRungs: parsed.setupRungs || [],
+          subroutines: parsed.subroutines || []
+        });
         if (parsed.customModules) setCustomModules(parsed.customModules);
         if (parsed.libraries) setLibraries(parsed.libraries);
         if (parsed.constants) setConstants(parsed.constants);
@@ -936,9 +986,11 @@ export default function App() {
   };
 
   const handleLoadProject = (project: ProjectData) => {
-    if (project.rungs) setRungs(project.rungs);
-    if (project.setupRungs) setSetupRungs(project.setupRungs);
-    if (project.subroutines) setSubroutines(project.subroutines);
+    clearLadderHistory({
+      rungs: project.rungs || [],
+      setupRungs: project.setupRungs || [],
+      subroutines: project.subroutines || []
+    });
     if (project.customModules) setCustomModules(project.customModules);
     if (project.libraries) setLibraries(project.libraries);
     if (project.constants) setConstants(project.constants);
@@ -966,66 +1018,69 @@ export default function App() {
 
   const handleResetProject = () => {
     if (window.confirm('Biztosan törölni szeretnéd a projektet és új üres létrát kezdeni?')) {
-      setRungs([
-        {
-          id: `rung_${Date.now()}`,
-          number: 0,
-          comment: '1. Fok: Indítás és Motor Vezérlés',
-          branches: [
-            {
-              id: `branch_${Date.now()}`,
-              elements: [
-                {
-                  id: 'el_start',
-                  type: 'NO_CONTACT',
-                  category: 'contact',
-                  name: 'START_GOMB',
-                  pin: 'D2'
-                }
-              ]
-            }
-          ],
-          coils: [
-            {
-              id: 'el_coil',
-              type: 'COIL_NORMAL',
-              category: 'coil',
-              name: 'MOTOR_RELE',
-              pin: 'D8'
-            }
-          ]
-        }
-      ]);
-      setSetupRungs([
-        {
-          id: `rung_setup_${Date.now()}`,
-          number: 0,
-          comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le a setup()-ban)',
-          branches: [
-            {
-              id: `b_setup_${Date.now()}`,
-              elements: [
-                {
-                  id: 'el_boot_init',
-                  type: 'NO_CONTACT',
-                  category: 'contact',
-                  name: 'SYS_BOOT',
-                  variable: 'V_AUTO_MODE'
-                }
-              ]
-            }
-          ],
-          coils: [
-            {
-              id: 'el_boot_lcd',
-              type: 'MODULE_LCD_PRINT',
-              category: 'library_module',
-              name: 'LCD BOOT',
-              lcdText: 'PLC BOOT READY'
-            }
-          ]
-        }
-      ]);
+      clearLadderHistory({
+        rungs: [
+          {
+            id: `rung_${Date.now()}`,
+            number: 0,
+            comment: '1. Fok: Indítás és Motor Vezérlés',
+            branches: [
+              {
+                id: `branch_${Date.now()}`,
+                elements: [
+                  {
+                    id: 'el_start',
+                    type: 'NO_CONTACT',
+                    category: 'contact',
+                    name: 'START_GOMB',
+                    pin: 'D2'
+                  }
+                ]
+              }
+            ],
+            coils: [
+              {
+                id: 'el_coil',
+                type: 'COIL_NORMAL',
+                category: 'coil',
+                name: 'MOTOR_RELE',
+                pin: 'D8'
+              }
+            ]
+          }
+        ],
+        setupRungs: [
+          {
+            id: `rung_setup_${Date.now()}`,
+            number: 0,
+            comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le a setup()-ban)',
+            branches: [
+              {
+                id: `b_setup_${Date.now()}`,
+                elements: [
+                  {
+                    id: 'el_boot_init',
+                    type: 'NO_CONTACT',
+                    category: 'contact',
+                    name: 'SYS_BOOT',
+                    variable: 'V_AUTO_MODE'
+                  }
+                ]
+              }
+            ],
+            coils: [
+              {
+                id: 'el_boot_lcd',
+                type: 'MODULE_LCD_PRINT',
+                category: 'library_module',
+                name: 'LCD BOOT',
+                lcdText: 'PLC BOOT READY'
+              }
+            ]
+          }
+        ],
+        subroutines: []
+      });
       setConstants(DEFAULT_CONSTANTS);
       setVariables(DEFAULT_VARIABLES);
       setArrays(DEFAULT_ARRAYS);
@@ -1067,6 +1122,10 @@ export default function App() {
         onOpenSaveLoadModal={() => setIsSaveLoadModalOpen(true)}
         onOpenHardwareMap={() => setIsHardwareMapOpen(true)}
         pinConflictCount={pinConflictsCount}
+        onUndo={undoLadder}
+        onRedo={redoLadder}
+        canUndo={canUndoLadder}
+        canRedo={canRedoLadder}
       />
 
       {/* 4 Main Pages */}
