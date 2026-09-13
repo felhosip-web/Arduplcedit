@@ -208,30 +208,29 @@ export default function App() {
   // Currently opened subroutine for ladder editing (null = main ladder)
   const [activeSubroutineId, setActiveSubroutineId] = useState<string | null>(null);
 
-  // Main Ladder Rungs (loop() cyclic scan)
-  const [rungs, setRungs] = useState<Rung[]>(() => {
+  // Cache parsed initial state to avoid multiple localStorage parsing
+  const initialSavedState = useMemo(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.rungs && parsed.rungs.length > 0) return parsed.rungs;
+        return JSON.parse(saved);
       }
     } catch (e) {
       console.error('Failed to load from storage:', e);
     }
+    return null;
+  }, []);
+
+  // Main Ladder Rungs (loop() cyclic scan)
+  const [rungs, setRungs] = useState<Rung[]>(() => {
+    if (initialSavedState?.rungs?.length > 0) return initialSavedState.rungs;
     return EXAMPLE_PROJECTS[0].rungs;
   });
 
   // Setup Ladder Rungs (setup() runs once at boot)
   const [setupRungs, setSetupRungs] = useState<Rung[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.setupRungs && Array.isArray(parsed.setupRungs)) return parsed.setupRungs;
-      }
-    } catch (e) {
-      console.error('Failed to load setupRungs from storage:', e);
+    if (initialSavedState?.setupRungs && Array.isArray(initialSavedState.setupRungs)) {
+      return initialSavedState.setupRungs;
     }
     return EXAMPLE_PROJECTS[0].setupRungs || [
       {
@@ -269,122 +268,58 @@ export default function App() {
 
   // Custom Subroutines (Ladder-based Function Blocks)
   const [subroutines, setSubroutines] = useState<Subroutine[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.subroutines && parsed.subroutines.length > 0) return parsed.subroutines;
-      }
-    } catch (e) {
-      console.error('Failed to load subroutines from storage:', e);
-    }
+    if (initialSavedState?.subroutines?.length > 0) return initialSavedState.subroutines;
     return DEFAULT_SUBROUTINES;
   });
 
   // Custom Modules & Templates
   const [customModules, setCustomModules] = useState<CustomModuleTemplate[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.customModules && parsed.customModules.length > 0) return parsed.customModules;
-      }
-    } catch (e) {
-      console.error('Failed to load custom modules from storage:', e);
-    }
+    if (initialSavedState?.customModules?.length > 0) return initialSavedState.customModules;
     return DEFAULT_CUSTOM_MODULES;
   });
 
   // Arduino Libraries
   const [libraries, setLibraries] = useState<ArduinoLibrary[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.libraries) return parsed.libraries;
-      }
-    } catch (e) {
-      console.error('Failed to load libraries:', e);
-    }
+    if (initialSavedState?.libraries) return initialSavedState.libraries;
     return DEFAULT_LIBRARIES;
   });
 
   // PLC Constants (Read-only configuration thresholds)
   const [constants, setConstants] = useState<PLCConstant[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.constants && parsed.constants.length > 0) return parsed.constants;
-      }
-    } catch (e) {
-      console.error('Failed to load constants:', e);
-    }
+    if (initialSavedState?.constants?.length > 0) return initialSavedState.constants;
     return DEFAULT_CONSTANTS;
   });
 
   // PLC Process Variables (Dynamic memory registers)
   const [variables, setVariables] = useState<PLCVariable[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.variables && parsed.variables.length > 0) return parsed.variables;
-      }
-    } catch (e) {
-      console.error('Failed to load variables:', e);
-    }
+    if (initialSavedState?.variables?.length > 0) return initialSavedState.variables;
     return DEFAULT_VARIABLES;
   });
 
   // PLC Array Buffers
   const [arrays, setArrays] = useState<PLCArray[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.arrays && parsed.arrays.length > 0) return parsed.arrays;
-      }
-    } catch (e) {
-      console.error('Failed to load arrays:', e);
-    }
+    if (initialSavedState?.arrays?.length > 0) return initialSavedState.arrays;
     return DEFAULT_ARRAYS;
   });
 
   // Industrial Communication Protocols Configuration
   const [protocols, setProtocols] = useState<ProtocolConfigs>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.protocols) {
-          return {
-            ...DEFAULT_PROTOCOLS,
-            ...parsed.protocols,
-            rtc: parsed.protocols.rtc || DEFAULT_PROTOCOLS.rtc,
-            sdCard: parsed.protocols.sdCard || DEFAULT_PROTOCOLS.sdCard,
-            modbus: parsed.protocols.modbus || DEFAULT_PROTOCOLS.modbus,
-            supervisor: parsed.protocols.supervisor || DEFAULT_PROTOCOLS.supervisor
-          };
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load protocols:', e);
+    if (initialSavedState?.protocols) {
+      return {
+        ...DEFAULT_PROTOCOLS,
+        ...initialSavedState.protocols,
+        rtc: initialSavedState.protocols.rtc || DEFAULT_PROTOCOLS.rtc,
+        sdCard: initialSavedState.protocols.sdCard || DEFAULT_PROTOCOLS.sdCard,
+        modbus: initialSavedState.protocols.modbus || DEFAULT_PROTOCOLS.modbus,
+        supervisor: initialSavedState.protocols.supervisor || DEFAULT_PROTOCOLS.supervisor
+      };
     }
     return DEFAULT_PROTOCOLS;
   });
 
   // Hardware and Timer Interrupts Configuration
   const [interrupts, setInterrupts] = useState<InterruptsConfig>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.interrupts) return parsed.interrupts;
-      }
-    } catch (e) {
-      console.error('Failed to load interrupts:', e);
-    }
+    if (initialSavedState?.interrupts) return initialSavedState.interrupts;
     return DEFAULT_INTERRUPTS;
   });
 
