@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FileCode,
   Activity,
@@ -11,7 +11,10 @@ import {
   ChevronDown,
   Layers,
   Sparkles,
-  Gauge
+  Gauge,
+  Undo2,
+  Redo2,
+  Settings
 } from 'lucide-react';
 import { EXAMPLE_PROJECTS, ExampleProject } from '../data/exampleProjects';
 import { ActivePage } from '../types';
@@ -29,6 +32,10 @@ interface NavbarProps {
   onOpenSaveLoadModal?: () => void;
   onOpenHardwareMap?: () => void;
   pinConflictCount?: number;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,9 +50,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetProject,
   onOpenSaveLoadModal,
   onOpenHardwareMap,
-  pinConflictCount = 0
+  pinConflictCount = 0,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false
 }) => {
   const [examplesOpen, setExamplesOpen] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
+
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+  const editMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+        setFileMenuOpen(false);
+      }
+      if (editMenuRef.current && !editMenuRef.current.contains(e.target as Node)) {
+        setEditMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,26 +86,109 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="h-16 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 select-none z-30">
-      {/* Brand / Logo */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 p-0.5 shadow-lg shadow-sky-500/20">
-          <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-            <Cpu className="w-5 h-5 text-sky-400" />
+      {/* Brand / Classic Menu System */}
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 p-0.5 shadow-lg shadow-sky-500/20">
+            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+              <Cpu className="w-5 h-5 text-sky-400" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-slate-100 text-sm tracking-wide">
+                Arduino PLC Ladder Studio
+              </h1>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-950 text-sky-400 border border-sky-800/80">
+                v2.1
+              </span>
+            </div>
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-bold text-slate-100 text-sm tracking-wide">
-              Arduino PLC Ladder Studio
-            </h1>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-950 text-sky-400 border border-sky-800/80">
-              v2.0
-            </span>
+        {/* Classic Menu */}
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-300 relative">
+          {/* File Menu */}
+          <div className="relative" ref={fileMenuRef}>
+            <button
+              onClick={() => { setFileMenuOpen(!fileMenuOpen); setEditMenuOpen(false); }}
+              className={`px-3 py-1.5 rounded-lg transition-colors hover:text-white ${fileMenuOpen ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
+            >
+              Fájl
+            </button>
+            {fileMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-50">
+                <button
+                  onClick={() => { onResetProject(); setFileMenuOpen(false); }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4 text-rose-400" /> Új Projekt
+                </button>
+                <div className="h-px bg-slate-700 my-1" />
+                <label className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white cursor-pointer flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4" /> Importálás (JSON)
+                  <input type="file" accept=".json" onChange={(e) => { handleFileChange(e); setFileMenuOpen(false); }} className="hidden" />
+                </label>
+                <button
+                  onClick={() => { onExportProject(); setFileMenuOpen(false); }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" /> Exportálás (JSON)
+                </button>
+                {onOpenSaveLoadModal && (
+                  <>
+                    <div className="h-px bg-slate-700 my-1" />
+                    <button
+                      onClick={() => { onOpenSaveLoadModal(); setFileMenuOpen(false); }}
+                      className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-indigo-300"
+                    >
+                      <Save className="w-4 h-4" /> Projekt Kezelő (Slotok)
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <p className="text-[11px] text-slate-400">
-            6-oldalas Ipari Létra Szerkesztő, Szimulátor, Makrók, Menedzsment, Kódgenerátor & Diagnosztika
-          </p>
+
+          {/* Edit Menu */}
+          <div className="relative" ref={editMenuRef}>
+            <button
+              onClick={() => { setEditMenuOpen(!editMenuOpen); setFileMenuOpen(false); }}
+              className={`px-3 py-1.5 rounded-lg transition-colors hover:text-white ${editMenuOpen ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
+            >
+              Szerkesztés
+            </button>
+            {editMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-50">
+                <button
+                  onClick={() => { if(canUndo && onUndo) onUndo(); setEditMenuOpen(false); }}
+                  disabled={!canUndo}
+                  className={`w-full text-left px-4 py-2 flex items-center gap-2 justify-between ${canUndo ? 'hover:bg-slate-700 hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
+                >
+                  <div className="flex items-center gap-2"><Undo2 className="w-4 h-4" /> Visszavonás</div>
+                  <span className="text-xs text-slate-500">Ctrl+Z</span>
+                </button>
+                <button
+                  onClick={() => { if(canRedo && onRedo) onRedo(); setEditMenuOpen(false); }}
+                  disabled={!canRedo}
+                  className={`w-full text-left px-4 py-2 flex items-center gap-2 justify-between ${canRedo ? 'hover:bg-slate-700 hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
+                >
+                  <div className="flex items-center gap-2"><Redo2 className="w-4 h-4" /> Újra</div>
+                  <span className="text-xs text-slate-500">Ctrl+Y</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Settings Menu */}
+          <div className="relative">
+             <button
+                onClick={() => onChangePage('management')}
+                className="px-3 py-1.5 rounded-lg transition-colors hover:text-white hover:bg-slate-800/50 flex items-center gap-1.5"
+             >
+                <Settings className="w-4 h-4" /> Beállítások
+             </button>
+          </div>
         </div>
       </div>
 
@@ -171,7 +283,29 @@ export const Navbar: React.FC<NavbarProps> = ({
       </nav>
 
       {/* Right Action Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
+        {/* Undo/Redo quick buttons */}
+        <div className="flex items-center gap-1 mr-2 border-r border-slate-700 pr-3">
+          <button
+            type="button"
+            onClick={() => { if(canUndo && onUndo) onUndo(); }}
+            disabled={!canUndo}
+            className={`p-1.5 rounded-md transition-colors ${canUndo ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+            title="Visszavonás (Ctrl+Z)"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => { if(canRedo && onRedo) onRedo(); }}
+            disabled={!canRedo}
+            className={`p-1.5 rounded-md transition-colors ${canRedo ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+            title="Újra (Ctrl+Y)"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Examples Dropdown */}
         <div className="relative">
           <button
@@ -212,20 +346,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Project Save & Load Center Modal */}
-        {onOpenSaveLoadModal && (
-          <button
-            type="button"
-            onClick={onOpenSaveLoadModal}
-            className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 hover:text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm"
-            title="Projekt mentése és betöltése (Mentési slotok, JSON export/import)"
-          >
-            <Save className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Projekt Kezelő</span>
-          </button>
-        )}
-
-        {/* Hardware Map (Lábkiosztási Térkép) Modal Trigger */}
+        {/* Hardware Map Modal Trigger */}
         {onOpenHardwareMap && (
           <button
             type="button"
@@ -255,40 +376,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Terminal className="w-4 h-4" />
           <span>Arduino Kód (.ino)</span>
-        </button>
-
-        {/* Export JSON */}
-        <button
-          type="button"
-          onClick={onExportProject}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors"
-          title="Projekt mentése (JSON)"
-        >
-          <Save className="w-4 h-4" />
-        </button>
-
-        {/* Import JSON hidden input */}
-        <label
-          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
-          title="Projekt betöltése (JSON)"
-        >
-          <FolderOpen className="w-4 h-4" />
-          <input
-            type="file"
-            accept=".json"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </label>
-
-        {/* Reset */}
-        <button
-          type="button"
-          onClick={onResetProject}
-          className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/60 border border-slate-700 text-slate-300 hover:text-rose-300 transition-colors"
-          title="Új projekt / Törlés"
-        >
-          <RefreshCw className="w-4 h-4" />
         </button>
       </div>
     </header>

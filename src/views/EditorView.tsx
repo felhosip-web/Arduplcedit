@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Rung, LadderElement, SimulationState, CustomModuleTemplate, Subroutine } from '../types';
 import { ToolPalette } from '../components/ToolPalette';
 import { LadderCanvas } from '../components/LadderCanvas';
@@ -74,7 +74,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
     ? setupRungs
     : mainRungs;
 
-  const handleUpdateActiveRungs = (newRungs: Rung[]) => {
+  const handleUpdateActiveRungs = useCallback((newRungs: Rung[]) => {
     if (isEditingSubroutine && currentSubroutine) {
       onUpdateSubroutine({
         ...currentSubroutine,
@@ -85,10 +85,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
     } else {
       onUpdateMainRungs(newRungs);
     }
-  };
+  }, [isEditingSubroutine, currentSubroutine, onUpdateSubroutine, currentSection, onUpdateSetupRungs, onUpdateMainRungs]);
 
   // Add Element to the selected rung
-  const handleAddElement = (template: Partial<LadderElement>) => {
+  const handleAddElement = useCallback((template: Partial<LadderElement>) => {
     if (activeRungs.length === 0) return;
     const targetIdx = Math.min(selectedRungIndex, activeRungs.length - 1);
     const targetRung = activeRungs[targetIdx];
@@ -137,10 +137,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
     }
 
     handleUpdateActiveRungs(updatedRungs);
-  };
+  }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs]);
 
   // Canvas Rung actions
-  const handleAddRung = () => {
+  const handleAddRung = useCallback(() => {
     const newRung: Rung = {
       id: `rung_${Date.now()}`,
       number: activeRungs.length,
@@ -155,18 +155,18 @@ export const EditorView: React.FC<EditorViewProps> = ({
     };
     handleUpdateActiveRungs([...activeRungs, newRung]);
     onSelectRung(activeRungs.length);
-  };
+  }, [activeRungs, isEditingSubroutine, handleUpdateActiveRungs, onSelectRung]);
 
-  const handleDeleteRung = (id: string) => {
+  const handleDeleteRung = useCallback((id: string) => {
     if (activeRungs.length <= 1) return;
     const filtered = activeRungs.filter((r) => r.id !== id).map((r, i) => ({ ...r, number: i }));
     handleUpdateActiveRungs(filtered);
     if (selectedRungIndex >= filtered.length) {
       onSelectRung(Math.max(0, filtered.length - 1));
     }
-  };
+  }, [activeRungs, handleUpdateActiveRungs, selectedRungIndex, onSelectRung]);
 
-  const handleDuplicateRung = (id: string) => {
+  const handleDuplicateRung = useCallback((id: string) => {
     const rungToDup = activeRungs.find((r) => r.id === id);
     if (!rungToDup) return;
     const dup: Rung = {
@@ -181,9 +181,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
       coils: rungToDup.coils.map((c) => ({ ...c, id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 5)}` }))
     };
     handleUpdateActiveRungs([...activeRungs, dup]);
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
-  const handleMoveRung = (id: string, direction: 'up' | 'down') => {
+  const handleMoveRung = useCallback((id: string, direction: 'up' | 'down') => {
     const index = activeRungs.findIndex((r) => r.id === id);
     if (index === -1) return;
     const newIdx = direction === 'up' ? index - 1 : index + 1;
@@ -195,13 +195,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
     copy[newIdx] = temp;
     handleUpdateActiveRungs(copy.map((r, i) => ({ ...r, number: i })));
     onSelectRung(newIdx);
-  };
+  }, [activeRungs, handleUpdateActiveRungs, onSelectRung]);
 
-  const handleUpdateRungComment = (id: string, comment: string) => {
+  const handleUpdateRungComment = useCallback((id: string, comment: string) => {
     handleUpdateActiveRungs(activeRungs.map((r) => (r.id === id ? { ...r, comment } : r)));
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
-  const handleAddParallelBranch = (rungId: string) => {
+  const handleAddParallelBranch = useCallback((rungId: string) => {
     handleUpdateActiveRungs(
       activeRungs.map((r) => {
         if (r.id !== rungId) return r;
@@ -211,9 +211,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
         };
       })
     );
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
-  const handleDeleteParallelBranch = (rungId: string, branchId: string) => {
+  const handleDeleteParallelBranch = useCallback((rungId: string, branchId: string) => {
     handleUpdateActiveRungs(
       activeRungs.map((r) => {
         if (r.id !== rungId) return r;
@@ -224,9 +224,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
         };
       })
     );
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
-  const handleDeleteElement = (id: string) => {
+  const handleDeleteElement = useCallback((id: string) => {
     handleUpdateActiveRungs(
       activeRungs.map((r) => ({
         ...r,
@@ -237,14 +237,20 @@ export const EditorView: React.FC<EditorViewProps> = ({
         coils: r.coils.filter((c) => c.id !== id)
       }))
     );
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
-  const handleDropElementOnBranch = (
+  const handleDropElementOnBranch = useCallback((
     rungId: string,
     branchId: string,
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    // Prevent dropping coils or output modules into a contact branch
+    if (elementData.category && ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol'].includes(elementData.category)) {
+      alert("Hiba: Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
+      return;
+    }
+
     const newElement: LadderElement = {
       id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: elementData.type || 'NO_CONTACT',
@@ -275,13 +281,19 @@ export const EditorView: React.FC<EditorViewProps> = ({
         };
       })
     );
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
-  const handleDropElementOnCoils = (
+  const handleDropElementOnCoils = useCallback((
     rungId: string,
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    // Prevent dropping input contacts into the output (coil) area
+    if (elementData.category && ['contact', 'variable_op', 'variable'].includes(elementData.category)) {
+      alert("Hiba: Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
+      return;
+    }
+
     const newElement: LadderElement = {
       id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: elementData.type || 'COIL_NORMAL',
@@ -309,7 +321,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
         return { ...r, coils };
       })
     );
-  };
+  }, [activeRungs, handleUpdateActiveRungs]);
 
   // Quick insert current subroutine into main ladder
   const handleInsertSubroutineToMain = () => {
