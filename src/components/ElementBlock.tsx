@@ -822,11 +822,36 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
             LIB
           </span>
         )}
-        {element.comment && (
-          <span className="text-slate-400 truncate max-w-full" title={element.comment}>
-            {element.comment}
-          </span>
-        )}
+      </div>
+
+      {/* Detailed Tooltip on Hover */}
+      <div className="hidden group-hover:block absolute top-full mt-2 left-1/2 -translate-x-1/2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 p-3 text-left pointer-events-none">
+        <div className="text-xs font-bold text-sky-400 border-b border-slate-700 pb-1 mb-1 truncate">
+          {element.name}
+        </div>
+        <div className="space-y-1 text-[10px] font-mono text-slate-300">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Típus:</span>
+            <span>{element.type}</span>
+          </div>
+          {resolvedVariable && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Változó/Ref:</span>
+              <span className="text-amber-300 font-bold truncate max-w-[80px]">{resolvedVariable}</span>
+            </div>
+          )}
+          {element.pin && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Pin:</span>
+              <span className="text-cyan-300">{element.pin}</span>
+            </div>
+          )}
+          {element.comment && (
+            <div className="mt-1 pt-1 border-t border-slate-700/50 text-slate-400 italic font-sans whitespace-pre-wrap">
+              {element.comment}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Hover action buttons (Edit & Delete & Tune) */}

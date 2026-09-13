@@ -5,6 +5,7 @@ import { LadderCanvas } from '../components/LadderCanvas';
 import { DndContext, DragEndEvent, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { ElementBlock } from '../components/ElementBlock';
+import { toast } from 'react-hot-toast';
 import {
   Layers,
   Plus,
@@ -252,7 +253,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   ) => {
     // Prevent dropping coils or output modules into a contact branch
     if (elementData.category && ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol'].includes(elementData.category)) {
-      alert("Hiba: Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
+      toast.error("Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
       return;
     }
 
@@ -295,7 +296,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   ) => {
     // Prevent dropping input contacts into the output (coil) area
     if (elementData.category && ['contact', 'variable_op', 'variable'].includes(elementData.category)) {
-      alert("Hiba: Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
+      toast.error("Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
       return;
     }
 

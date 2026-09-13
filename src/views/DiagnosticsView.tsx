@@ -281,6 +281,61 @@ ${tips.map((t) => `- [${t.type.toUpperCase()}] ${t.title}: ${t.description} -> J
         </div>
       </div>
 
+      {/* Structural Statistics Panel */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-100">Program Statisztika</h3>
+            <p className="text-[11px] text-slate-400">Létrafokok és elemek eloszlása</p>
+          </div>
+        </div>
+
+        {(() => {
+          const stats = useMemo(() => {
+            let totalRungs = mainRungs.length + setupRungs.length;
+            let totalContacts = 0;
+            let totalCoils = 0;
+
+            const countElements = (rungs: Rung[]) => {
+              rungs.forEach(rung => {
+                rung.branches.forEach(b => {
+                  totalContacts += b.elements.length;
+                });
+                totalCoils += rung.coils.length;
+              });
+            };
+
+            countElements(mainRungs);
+            countElements(setupRungs);
+            subroutines?.forEach(sub => countElements(sub.rungs));
+
+            return { totalRungs, totalContacts, totalCoils };
+          }, [mainRungs, setupRungs, subroutines]);
+
+          return (
+            <div className="flex items-center gap-4 sm:gap-8 mr-4">
+              <div className="flex flex-col items-center">
+                <span className="text-2xl font-black font-mono text-sky-400">{stats.totalRungs}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500">Rung</span>
+              </div>
+              <div className="w-px h-8 bg-slate-800"></div>
+              <div className="flex flex-col items-center">
+                <span className="text-2xl font-black font-mono text-emerald-400">{stats.totalContacts}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500">Kontaktus</span>
+              </div>
+              <div className="w-px h-8 bg-slate-800"></div>
+              <div className="flex flex-col items-center">
+                <span className="text-2xl font-black font-mono text-amber-400">{stats.totalCoils}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500">Tekercs</span>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* 2. Top Metric KPI Cards (CPU Load, Scan Time, SRAM, Flash) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* CPU Load Card */}

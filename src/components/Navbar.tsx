@@ -14,7 +14,8 @@ import {
   Gauge,
   Undo2,
   Redo2,
-  Settings
+  Settings,
+  Printer
 } from 'lucide-react';
 import { EXAMPLE_PROJECTS, ExampleProject } from '../data/exampleProjects';
 import { ActivePage } from '../types';
@@ -145,6 +146,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <FileCode className="w-4 h-4" /> Exportálás (PLCopen XML)
                   </button>
                 )}
+                <button
+                  onClick={() => { window.print(); setFileMenuOpen(false); }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-sky-400"
+                >
+                  <Printer className="w-4 h-4" /> Nyomtatás / PDF Export
+                </button>
                 {onOpenSaveLoadModal && (
                   <>
                     <div className="h-px bg-slate-700 my-1" />

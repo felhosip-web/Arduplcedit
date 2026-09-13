@@ -17,6 +17,7 @@ import {
 import { useStore } from './store/useStore';
 import { migrateProjectData } from './utils/schemaValidation';
 import { exportToPlcOpenXml } from './utils/plcOpenXmlUtils';
+import { Toaster, toast } from 'react-hot-toast';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
@@ -865,7 +866,7 @@ export default function App() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('XML Export Error:', err);
-      alert('Hiba történt az XML exportálás során.');
+      toast.error('Hiba történt az XML exportálás során.');
     }
   };
 
@@ -895,7 +896,7 @@ export default function App() {
         setActivePage('editor');
       } catch (err) {
         console.error('Projekt importálási hiba:', err);
-        alert(err instanceof Error ? err.message : 'Hibás vagy sérült projekt fájl!');
+        toast.error(err instanceof Error ? err.message : 'Hibás vagy sérült projekt fájl!');
       }
     };
     reader.readAsText(file);
@@ -953,7 +954,7 @@ export default function App() {
       setActiveSubroutineId(null);
     } catch (err) {
       console.error('Projekt betöltési hiba:', err);
-      alert(err instanceof Error ? err.message : 'Hibás vagy sérült projekt adatok!');
+      toast.error(err instanceof Error ? err.message : 'Hibás vagy sérült projekt adatok!');
     }
   };
 
@@ -1049,6 +1050,14 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      <Toaster position="top-center" toastOptions={{
+        duration: 4000,
+        style: {
+          background: '#1e293b',
+          color: '#f8fafc',
+          border: '1px solid #334155'
+        }
+      }} />
       {/* Global Navigation Bar */}
       <Navbar
         activePage={activePage}
