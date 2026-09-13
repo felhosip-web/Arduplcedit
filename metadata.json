@@ -1,0 +1,6 @@
+{
+  "name": "Arduino PLC Ladder Studio",
+  "description": "Böngésző alapú drag-and-drop PLC létradiagram programozó Arduinóhoz grafikus Hardver Lábkiosztási Térképpel (Hardware Map), Modbus RTU/RS485 ipari busz támogatással, Watchdog és Brown-out felügyelettel, szimulátorral és C++ kódgenerátorral.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
