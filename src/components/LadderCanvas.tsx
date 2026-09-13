@@ -6,6 +6,7 @@ import { validateRungs, ValidationError } from '../utils/validationUtils';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ContextMenu } from './ContextMenu';
 import { useDroppable } from '@dnd-kit/core';
+import { useStore } from '../store/useStore';
 
 // Helper component for droppable zones
 const DroppableZone = ({ id, children, className }: any) => {
@@ -507,7 +508,11 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
     setDragOverTarget(null);
   }, []);
 
-  const validationErrors = useMemo(() => validateRungs(rungs), [rungs]);
+  const variables = useStore((state: any) => state.history.present.variables);
+  const constants = useStore((state: any) => state.history.present.constants);
+  const arrays = useStore((state: any) => state.history.present.arrays);
+
+  const validationErrors = useMemo(() => validateRungs(rungs, variables, constants, arrays), [rungs, variables, constants, arrays]);
 
   return (
     <TransformWrapper

@@ -1,7 +1,10 @@
 import { create } from 'zustand';
-import { Rung, Subroutine, SimulationState, ProjectData } from '../types';
+import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig } from '../types';
 import { EXAMPLE_PROJECTS } from '../data/exampleProjects';
 import { DEFAULT_SUBROUTINES } from '../data/defaultSubroutines';
+import { DEFAULT_VARIABLES, DEFAULT_CONSTANTS, DEFAULT_ARRAYS } from '../data/defaultVariables';
+import { DEFAULT_PROTOCOLS } from '../data/defaultProtocols';
+import { DEFAULT_INTERRUPTS } from '../data/defaultInterrupts';
 
 const INITIAL_SIMULATION_STATE: SimulationState = {
   isRunning: false,
@@ -67,10 +70,15 @@ const INITIAL_SIMULATION_STATE: SimulationState = {
 
 const STORAGE_KEY = 'arduino_plc_ladder_project_v3';
 
-interface LadderState {
+export interface LadderState {
   rungs: Rung[];
   setupRungs: Rung[];
   subroutines: Subroutine[];
+  variables: PLCVariable[];
+  constants: PLCConstant[];
+  arrays: PLCArray[];
+  protocols: ProtocolConfigs;
+  interrupts: InterruptsConfig;
 }
 
 interface HistoryState {
@@ -91,6 +99,11 @@ interface AppState {
   setSetupRungs: (updater: Rung[] | ((prev: Rung[]) => Rung[])) => void;
   setSubroutines: (updater: Subroutine[] | ((prev: Subroutine[]) => Subroutine[])) => void;
   setSimulationState: (updater: SimulationState | ((prev: SimulationState) => SimulationState)) => void;
+  setVariables: (updater: PLCVariable[] | ((prev: PLCVariable[]) => PLCVariable[])) => void;
+  setConstants: (updater: PLCConstant[] | ((prev: PLCConstant[]) => PLCConstant[])) => void;
+  setArrays: (updater: PLCArray[] | ((prev: PLCArray[]) => PLCArray[])) => void;
+  setProtocols: (updater: ProtocolConfigs | ((prev: ProtocolConfigs) => ProtocolConfigs)) => void;
+  setInterrupts: (updater: InterruptsConfig | ((prev: InterruptsConfig) => InterruptsConfig)) => void;
 
   _updatePresent: (newPresent: LadderState) => void;
 
@@ -124,7 +137,12 @@ const initialLadderState: LadderState = {
           coils: [{ id: 'el_setup_lcd_hello', type: 'LCD_PRINT', category: 'library_module', name: 'LCD BOOT', lcdText: 'ARDUINO PLC OK', comment: 'Kezdő üzenet LCD-re' }]
         }
       ]),
-  subroutines: initialSavedState?.subroutines?.length > 0 ? initialSavedState.subroutines : DEFAULT_SUBROUTINES
+  subroutines: initialSavedState?.subroutines?.length > 0 ? initialSavedState.subroutines : DEFAULT_SUBROUTINES,
+  variables: initialSavedState?.variables?.length > 0 ? initialSavedState.variables : DEFAULT_VARIABLES,
+  constants: initialSavedState?.constants?.length > 0 ? initialSavedState.constants : DEFAULT_CONSTANTS,
+  arrays: initialSavedState?.arrays?.length > 0 ? initialSavedState.arrays : DEFAULT_ARRAYS,
+  protocols: initialSavedState?.protocols ? { ...DEFAULT_PROTOCOLS, ...initialSavedState.protocols } : DEFAULT_PROTOCOLS,
+  interrupts: initialSavedState?.interrupts ? { ...DEFAULT_INTERRUPTS, ...initialSavedState.interrupts } : DEFAULT_INTERRUPTS
 };
 
 export const useStore = create<AppState>((set, get) => ({
@@ -170,6 +188,36 @@ export const useStore = create<AppState>((set, get) => ({
     const state = get();
     const newSubroutines = typeof updater === 'function' ? updater(state.history.present.subroutines) : updater;
     get()._updatePresent({ ...state.history.present, subroutines: newSubroutines });
+  },
+
+  setVariables: (updater) => {
+    const state = get();
+    const newVariables = typeof updater === 'function' ? updater(state.history.present.variables) : updater;
+    get()._updatePresent({ ...state.history.present, variables: newVariables });
+  },
+
+  setConstants: (updater) => {
+    const state = get();
+    const newConstants = typeof updater === 'function' ? updater(state.history.present.constants) : updater;
+    get()._updatePresent({ ...state.history.present, constants: newConstants });
+  },
+
+  setArrays: (updater) => {
+    const state = get();
+    const newArrays = typeof updater === 'function' ? updater(state.history.present.arrays) : updater;
+    get()._updatePresent({ ...state.history.present, arrays: newArrays });
+  },
+
+  setProtocols: (updater) => {
+    const state = get();
+    const newProtocols = typeof updater === 'function' ? updater(state.history.present.protocols) : updater;
+    get()._updatePresent({ ...state.history.present, protocols: newProtocols });
+  },
+
+  setInterrupts: (updater) => {
+    const state = get();
+    const newInterrupts = typeof updater === 'function' ? updater(state.history.present.interrupts) : updater;
+    get()._updatePresent({ ...state.history.present, interrupts: newInterrupts });
   },
 
   undo: () => set((state) => {

@@ -257,55 +257,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoLadder, redoLadder, canUndoLadder, canRedoLadder]);
 
-  // Custom Modules & Templates
+  // Destructure missing global states from the store
+  const { variables, constants, arrays, protocols, interrupts } = history.present;
+  const { setVariables, setConstants, setArrays, setProtocols, setInterrupts } = useStore();
+
+  // Custom Modules & Templates (Kept in local state for now, or move to store if needed)
   const [customModules, setCustomModules] = useState<CustomModuleTemplate[]>(() => {
     if (initialSavedState?.customModules?.length > 0) return initialSavedState.customModules;
     return DEFAULT_CUSTOM_MODULES;
   });
 
-  // Arduino Libraries
+  // Arduino Libraries (Kept in local state for now)
   const [libraries, setLibraries] = useState<ArduinoLibrary[]>(() => {
     if (initialSavedState?.libraries) return initialSavedState.libraries;
     return DEFAULT_LIBRARIES;
-  });
-
-  // PLC Constants (Read-only configuration thresholds)
-  const [constants, setConstants] = useState<PLCConstant[]>(() => {
-    if (initialSavedState?.constants?.length > 0) return initialSavedState.constants;
-    return DEFAULT_CONSTANTS;
-  });
-
-  // PLC Process Variables (Dynamic memory registers)
-  const [variables, setVariables] = useState<PLCVariable[]>(() => {
-    if (initialSavedState?.variables?.length > 0) return initialSavedState.variables;
-    return DEFAULT_VARIABLES;
-  });
-
-  // PLC Array Buffers
-  const [arrays, setArrays] = useState<PLCArray[]>(() => {
-    if (initialSavedState?.arrays?.length > 0) return initialSavedState.arrays;
-    return DEFAULT_ARRAYS;
-  });
-
-  // Industrial Communication Protocols Configuration
-  const [protocols, setProtocols] = useState<ProtocolConfigs>(() => {
-    if (initialSavedState?.protocols) {
-      return {
-        ...DEFAULT_PROTOCOLS,
-        ...initialSavedState.protocols,
-        rtc: initialSavedState.protocols.rtc || DEFAULT_PROTOCOLS.rtc,
-        sdCard: initialSavedState.protocols.sdCard || DEFAULT_PROTOCOLS.sdCard,
-        modbus: initialSavedState.protocols.modbus || DEFAULT_PROTOCOLS.modbus,
-        supervisor: initialSavedState.protocols.supervisor || DEFAULT_PROTOCOLS.supervisor
-      };
-    }
-    return DEFAULT_PROTOCOLS;
-  });
-
-  // Hardware and Timer Interrupts Configuration
-  const [interrupts, setInterrupts] = useState<InterruptsConfig>(() => {
-    if (initialSavedState?.interrupts) return initialSavedState.interrupts;
-    return DEFAULT_INTERRUPTS;
   });
 
   // Project Save & Load Modal
@@ -650,7 +615,7 @@ export default function App() {
           id: `eeprom_manual_${Date.now()}`,
           timestamp: ts,
           op: 'WRITE',
-          addressHex: protocols.eeprom24c?.i2cAddress || '0x50',
+          addressHex: protocols.eeprom24c?.addressHex || '0x50',
           dataType: 'FLOAT',
           value,
           status: 'SUCCESS'
