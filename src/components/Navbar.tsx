@@ -27,6 +27,7 @@ interface NavbarProps {
   onOpenCodeViewer: () => void;
   onLoadExample: (example: ExampleProject) => void;
   onExportProject: () => void;
+  onExportPlcOpenXml?: () => void;
   onImportProject: (file: File) => void;
   onResetProject: () => void;
   onOpenSaveLoadModal?: () => void;
@@ -46,6 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCodeViewer,
   onLoadExample,
   onExportProject,
+  onExportPlcOpenXml,
   onImportProject,
   onResetProject,
   onOpenSaveLoadModal,
@@ -135,6 +137,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Save className="w-4 h-4" /> Exportálás (JSON)
                 </button>
+                {onExportPlcOpenXml && (
+                  <button
+                    onClick={() => { onExportPlcOpenXml(); setFileMenuOpen(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-emerald-400"
+                  >
+                    <FileCode className="w-4 h-4" /> Exportálás (PLCopen XML)
+                  </button>
+                )}
                 {onOpenSaveLoadModal && (
                   <>
                     <div className="h-px bg-slate-700 my-1" />

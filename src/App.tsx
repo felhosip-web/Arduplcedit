@@ -15,6 +15,8 @@ import {
   ProjectData
 } from './types';
 import { useStore } from './store/useStore';
+import { migrateProjectData } from './utils/schemaValidation';
+import { exportToPlcOpenXml } from './utils/plcOpenXmlUtils';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
@@ -837,29 +839,63 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPlcOpenXml = () => {
+    const data = {
+      version: '3.1',
+      name: 'Arduino_PLC_Project',
+      rungs,
+      setupRungs,
+      subroutines,
+      customModules,
+      libraries,
+      constants,
+      variables,
+      arrays,
+      protocols,
+      interrupts
+    };
+    try {
+      const xmlString = exportToPlcOpenXml(data);
+      const blob = new Blob([xmlString], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Arduino_PLC_Project_${Date.now()}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('XML Export Error:', err);
+      alert('Hiba történt az XML exportálás során.');
+    }
+  };
+
   const handleImportProject = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
+        const migrated = migrateProjectData(parsed);
+
         clearLadderHistory({
-          rungs: parsed.rungs || [],
-          setupRungs: parsed.setupRungs || [],
-          subroutines: parsed.subroutines || []
+          rungs: migrated.rungs,
+          setupRungs: migrated.setupRungs,
+          subroutines: migrated.subroutines,
+          variables: migrated.variables,
+          constants: migrated.constants,
+          arrays: migrated.arrays,
+          protocols: migrated.protocols,
+          interrupts: migrated.interrupts
         });
-        if (parsed.customModules) setCustomModules(parsed.customModules);
-        if (parsed.libraries) setLibraries(parsed.libraries);
-        if (parsed.constants) setConstants(parsed.constants);
-        if (parsed.variables) setVariables(parsed.variables);
-        if (parsed.arrays) setArrays(parsed.arrays);
-        if (parsed.protocols) setProtocols(parsed.protocols);
-        if (parsed.interrupts) setInterrupts(parsed.interrupts);
+        if (migrated.customModules) setCustomModules(migrated.customModules);
+        if (migrated.libraries) setLibraries(migrated.libraries);
+
         setSelectedRungIndex(0);
         setActiveSubroutineId(null);
         setActivePage('editor');
       } catch (err) {
         console.error('Projekt importálási hiba:', err);
+        alert(err instanceof Error ? err.message : 'Hibás vagy sérült projekt fájl!');
       }
     };
     reader.readAsText(file);
@@ -883,34 +919,42 @@ export default function App() {
   };
 
   const handleLoadProject = (project: ProjectData) => {
-    clearLadderHistory({
-      rungs: project.rungs || [],
-      setupRungs: project.setupRungs || [],
-      subroutines: project.subroutines || []
-    });
-    if (project.customModules) setCustomModules(project.customModules);
-    if (project.libraries) setLibraries(project.libraries);
-    if (project.constants) setConstants(project.constants);
-    if (project.variables) {
-      setVariables(project.variables);
-      const varMap: Record<string, number | boolean | string> = {};
-      project.variables.forEach((v) => {
-        varMap[v.name] = v.initialValue;
+    try {
+      const migrated = migrateProjectData(project);
+      clearLadderHistory({
+        rungs: migrated.rungs,
+        setupRungs: migrated.setupRungs,
+        subroutines: migrated.subroutines,
+        variables: migrated.variables,
+        constants: migrated.constants,
+        arrays: migrated.arrays,
+        protocols: migrated.protocols,
+        interrupts: migrated.interrupts
       });
-      setSimulationState((prev) => ({ ...prev, variableValues: { ...prev.variableValues, ...varMap } }));
+      if (migrated.customModules) setCustomModules(migrated.customModules);
+      if (migrated.libraries) setLibraries(migrated.libraries);
+
+      if (migrated.variables) {
+        const varMap: Record<string, number | boolean | string> = {};
+        migrated.variables.forEach((v) => {
+          varMap[v.name] = v.initialValue;
+        });
+        setSimulationState((prev) => ({ ...prev, variableValues: { ...prev.variableValues, ...varMap } }));
+      }
+      if (migrated.arrays) {
+        const arrMap: Record<string, (number | boolean | string)[]> = {};
+        migrated.arrays.forEach((a) => {
+          arrMap[a.name] = [...a.values];
+        });
+        setSimulationState((prev) => ({ ...prev, arrayValues: { ...prev.arrayValues, ...arrMap } }));
+      }
+
+      setSelectedRungIndex(0);
+      setActiveSubroutineId(null);
+    } catch (err) {
+      console.error('Projekt betöltési hiba:', err);
+      alert(err instanceof Error ? err.message : 'Hibás vagy sérült projekt adatok!');
     }
-    if (project.arrays) {
-      setArrays(project.arrays);
-      const arrMap: Record<string, (number | boolean | string)[]> = {};
-      project.arrays.forEach((a) => {
-        arrMap[a.name] = [...a.values];
-      });
-      setSimulationState((prev) => ({ ...prev, arrayValues: { ...prev.arrayValues, ...arrMap } }));
-    }
-    if (project.protocols) setProtocols(project.protocols);
-    if (project.interrupts) setInterrupts(project.interrupts);
-    setSelectedRungIndex(0);
-    setActiveSubroutineId(null);
   };
 
   const handleResetProject = () => {
@@ -1014,6 +1058,7 @@ export default function App() {
         onOpenCodeViewer={() => setActivePage('code')}
         onLoadExample={handleLoadExample}
         onExportProject={handleExportProject}
+        onExportPlcOpenXml={handleExportPlcOpenXml}
         onImportProject={handleImportProject}
         onResetProject={handleResetProject}
         onOpenSaveLoadModal={() => setIsSaveLoadModalOpen(true)}
