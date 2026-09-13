@@ -2,6 +2,9 @@ import React, { useState, useCallback } from 'react';
 import { Rung, LadderElement, SimulationState, CustomModuleTemplate, Subroutine } from '../types';
 import { ToolPalette } from '../components/ToolPalette';
 import { LadderCanvas } from '../components/LadderCanvas';
+import { DndContext, DragEndEvent, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
+import { ElementBlock } from '../components/ElementBlock';
 import {
   Layers,
   Plus,
@@ -63,6 +66,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
 }) => {
   // Active Section for Main Program: 'loop' (cyclic scan) or 'setup' (one-time boot)
   const [currentSection, setCurrentSection] = useState<'loop' | 'setup'>('loop');
+
+  const [activeDragElement, setActiveDragElement] = useState<Partial<LadderElement> | null>(null);
 
   const isEditingSubroutine = activeSubroutineId !== null;
   const currentSubroutine = subroutines.find((s) => s.id === activeSubroutineId);
@@ -323,6 +328,51 @@ export const EditorView: React.FC<EditorViewProps> = ({
     );
   }, [activeRungs, handleUpdateActiveRungs]);
 
+  const handleDragStart = (e: any) => {
+    const { active } = e;
+    if (active.data.current) {
+      setActiveDragElement(active.data.current);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragElement(null);
+    const { active, over } = event;
+    if (!over || !active.data.current) return;
+
+    const elementData = active.data.current as Partial<LadderElement>;
+    const overId = String(over.id);
+
+    // Parse the drop zone ID
+    if (overId.includes('_drop_')) {
+      // It's a branch drop zone: branchId_drop_index or branchId_empty
+      const parts = overId.split('_drop_');
+      if (parts.length === 2) {
+        const branchId = parts[0];
+        const insertIndex = parseInt(parts[1], 10);
+        // Find the rung that contains this branch to pass to the handler
+        const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
+        if (rung) {
+           handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
+        }
+      }
+    } else if (overId.includes('_empty')) {
+       // branchId_empty
+       const branchId = overId.replace('_empty', '');
+       const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
+       if (rung) {
+           handleDropElementOnBranch(rung.id, branchId, 0, elementData);
+       }
+    } else if (overId.includes('_coils_drop')) {
+      // It's a coil drop zone: rungId_coils_drop
+      const rungId = overId.split('_coils_drop')[0];
+      const rung = activeRungs.find(r => r.id === rungId);
+      if (rung) {
+        handleDropElementOnCoils(rungId, rung.coils.length, elementData);
+      }
+    }
+  };
+
   // Quick insert current subroutine into main ladder
   const handleInsertSubroutineToMain = () => {
     if (!currentSubroutine) return;
@@ -571,34 +621,48 @@ export const EditorView: React.FC<EditorViewProps> = ({
       )}
 
       {/* Main Workspace: Left ToolPalette, Right LadderCanvas */}
-      <div className="flex-1 flex overflow-hidden">
-        <ToolPalette
-          onAddElement={handleAddElement}
-          selectedRungIndex={selectedRungIndex}
-          customModules={customModules}
-          subroutines={subroutines}
-          onOpenManagement={onOpenManagement}
-        />
+      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[snapCenterToCursor]}>
+        <div className="flex-1 flex overflow-hidden">
+          <ToolPalette
+            onAddElement={handleAddElement}
+            selectedRungIndex={selectedRungIndex}
+            customModules={customModules}
+            subroutines={subroutines}
+            onOpenManagement={onOpenManagement}
+          />
 
-        <LadderCanvas
-          rungs={activeRungs}
-          simulationState={simulationState}
-          selectedRungIndex={selectedRungIndex}
-          isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
-          onSelectRung={onSelectRung}
-          onSelectElement={onSelectElement}
-          onDeleteElement={handleDeleteElement}
-          onAddRung={handleAddRung}
-          onDeleteRung={handleDeleteRung}
-          onDuplicateRung={handleDuplicateRung}
-          onMoveRung={handleMoveRung}
-          onUpdateRungComment={handleUpdateRungComment}
-          onAddParallelBranch={handleAddParallelBranch}
-          onDeleteParallelBranch={handleDeleteParallelBranch}
-          onDropElementOnBranch={handleDropElementOnBranch}
-          onDropElementOnCoils={handleDropElementOnCoils}
-        />
-      </div>
+          <LadderCanvas
+            rungs={activeRungs}
+            simulationState={simulationState}
+            selectedRungIndex={selectedRungIndex}
+            isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
+            onSelectRung={onSelectRung}
+            onSelectElement={onSelectElement}
+            onDeleteElement={handleDeleteElement}
+            onAddRung={handleAddRung}
+            onDeleteRung={handleDeleteRung}
+            onDuplicateRung={handleDuplicateRung}
+            onMoveRung={handleMoveRung}
+            onUpdateRungComment={handleUpdateRungComment}
+            onAddParallelBranch={handleAddParallelBranch}
+            onDeleteParallelBranch={handleDeleteParallelBranch}
+            onDropElementOnBranch={handleDropElementOnBranch}
+            onDropElementOnCoils={handleDropElementOnCoils}
+          />
+        </div>
+
+        <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
+          {activeDragElement ? (
+            <div className="opacity-80 scale-105 transform origin-center pointer-events-none z-[9999]">
+              <ElementBlock
+                element={activeDragElement as LadderElement}
+                onSelect={() => {}}
+                onDelete={() => {}}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 };

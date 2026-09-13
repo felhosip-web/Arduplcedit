@@ -14,7 +14,7 @@ import {
   InterruptsConfig,
   ProjectData
 } from './types';
-import { useUndoRedo } from './utils/useUndoRedo';
+import { useStore } from './store/useStore';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
@@ -209,7 +209,23 @@ export default function App() {
   // Currently opened subroutine for ladder editing (null = main ladder)
   const [activeSubroutineId, setActiveSubroutineId] = useState<string | null>(null);
 
-  // Cache parsed initial state to avoid multiple localStorage parsing
+  const {
+    history,
+    simulationState,
+    setRungs,
+    setSetupRungs,
+    setSubroutines,
+    setSimulationState,
+    undo: undoLadder,
+    redo: redoLadder,
+    clearHistory: clearLadderHistory
+  } = useStore();
+
+  const { rungs, setupRungs, subroutines } = history.present;
+  const canUndoLadder = history.past.length > 0;
+  const canRedoLadder = history.future.length > 0;
+
+  // Cache parsed initial state to avoid multiple localStorage parsing (for non-store states)
   const initialSavedState = useMemo(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -221,86 +237,6 @@ export default function App() {
     }
     return null;
   }, []);
-
-  // Combined Ladder State for Undo/Redo
-  interface LadderState {
-    rungs: Rung[];
-    setupRungs: Rung[];
-    subroutines: Subroutine[];
-  }
-
-  const initialLadderState: LadderState = {
-    rungs: initialSavedState?.rungs?.length > 0 ? initialSavedState.rungs : EXAMPLE_PROJECTS[0].rungs,
-    setupRungs: (initialSavedState?.setupRungs && Array.isArray(initialSavedState.setupRungs))
-      ? initialSavedState.setupRungs
-      : (EXAMPLE_PROJECTS[0].setupRungs || [
-          {
-            id: 'rung_setup_boot_1',
-            number: 0,
-            comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le)',
-            branches: [
-              {
-                id: 'b_setup_boot_1',
-                elements: [
-                  {
-                    id: 'el_setup_boot_flag',
-                    type: 'NO_CONTACT',
-                    category: 'contact',
-                    name: 'SYS_BOOT',
-                    variable: 'V_AUTO_MODE',
-                    comment: 'Boot feltétel'
-                  }
-                ]
-              }
-            ],
-            coils: [
-              {
-                id: 'el_setup_lcd_hello',
-                type: 'MODULE_LCD_PRINT',
-                category: 'library_module',
-                name: 'LCD BOOT',
-                lcdText: 'ARDUINO PLC OK',
-                comment: 'Kezdő üzenet LCD-re'
-              }
-            ]
-          }
-        ]),
-    subroutines: initialSavedState?.subroutines?.length > 0 ? initialSavedState.subroutines : DEFAULT_SUBROUTINES
-  };
-
-  const {
-    state: ladderState,
-    set: setLadderState,
-    undo: undoLadder,
-    redo: redoLadder,
-    clear: clearLadderHistory,
-    canUndo: canUndoLadder,
-    canRedo: canRedoLadder
-  } = useUndoRedo<LadderState>(initialLadderState);
-
-  const { rungs, setupRungs, subroutines } = ladderState;
-
-  // Helpers to update individual parts of the combined state
-  const setRungs = (newRungs: Rung[] | ((prev: Rung[]) => Rung[])) => {
-    setLadderState((prev) => ({
-      ...prev,
-      rungs: typeof newRungs === 'function' ? newRungs(prev.rungs) : newRungs
-    }));
-  };
-
-  const setSetupRungs = (newSetupRungs: Rung[] | ((prev: Rung[]) => Rung[])) => {
-    setLadderState((prev) => ({
-      ...prev,
-      setupRungs: typeof newSetupRungs === 'function' ? newSetupRungs(prev.setupRungs) : newSetupRungs
-    }));
-  };
-
-  const setSubroutines = (newSubs: Subroutine[] | ((prev: Subroutine[]) => Subroutine[])) => {
-    setLadderState((prev) => ({
-      ...prev,
-      subroutines: typeof newSubs === 'function' ? newSubs(prev.subroutines) : newSubs
-    }));
-  };
 
   // Setup Keyboard Shortcuts for Undo/Redo
   useEffect(() => {
@@ -383,9 +319,6 @@ export default function App() {
   const [selectedElement, setSelectedElement] = useState<LadderElement | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
-
-  // Simulation State
-  const [simulationState, setSimulationState] = useState<SimulationState>(INITIAL_SIMULATION_STATE);
 
   // Calculated Real-Time Hardware Pin Conflicts Count
   const pinConflictsCount = useMemo(() => {
@@ -716,10 +649,9 @@ export default function App() {
         {
           id: `eeprom_manual_${Date.now()}`,
           timestamp: ts,
-          operation: 'WRITE',
-          deviceAddress: protocols.eeprom24c?.i2cAddress || '0x50',
-          memoryAddress: address,
-          dataType: 'float',
+          op: 'WRITE',
+          addressHex: protocols.eeprom24c?.i2cAddress || '0x50',
+          dataType: 'FLOAT',
           value,
           status: 'SUCCESS'
         },
@@ -1071,7 +1003,7 @@ export default function App() {
             coils: [
               {
                 id: 'el_boot_lcd',
-                type: 'MODULE_LCD_PRINT',
+                type: 'LCD_PRINT',
                 category: 'library_module',
                 name: 'LCD BOOT',
                 lcdText: 'PLC BOOT READY'

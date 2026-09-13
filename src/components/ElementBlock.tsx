@@ -11,6 +11,7 @@ interface ElementBlockProps {
   onSelect: (el: LadderElement) => void;
   onDelete: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
@@ -21,7 +22,8 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   counterState,
   onSelect,
   onDelete,
-  onTunePid
+  onTunePid,
+  onContextMenu
 }) => {
   const isPassing = isSimulating && isActive;
 
@@ -764,6 +766,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   return (
     <div
       onClick={() => onSelect(element)}
+      onContextMenu={onContextMenu}
       className={`group relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all cursor-pointer select-none ${
         isPassing
           ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
