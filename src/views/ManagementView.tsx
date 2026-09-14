@@ -37,6 +37,7 @@ import {
 import { DataManager } from '../components/management/DataManager';
 import { ProtocolsManager } from '../components/management/ProtocolsManager';
 import { InterruptsManager } from '../components/management/InterruptsManager';
+import { TaskManager } from '../components/management/TaskManager';
 import { useStore } from '../store/useStore';
 
 interface ManagementViewProps {
@@ -120,7 +121,7 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
   interrupts,
   onUpdateInterrupts
 }) => {
-  const [activeTab, setActiveTab] = useState<'subroutines' | 'modules' | 'data' | 'protocols' | 'interrupts' | 'libraries' | 'settings'>('subroutines');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'subroutines' | 'modules' | 'data' | 'protocols' | 'interrupts' | 'libraries' | 'settings'>('tasks');
 
   const { actionLogs, featureFlags, toggleFeatureFlag, clearActionLogs } = useStore();
 
@@ -418,6 +419,19 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
       <div className="flex border-b border-slate-800 gap-2 text-sm font-semibold">
         <button
           type="button"
+          onClick={() => setActiveTab('tasks')}
+          className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'tasks'
+              ? 'border-yellow-500 text-yellow-400 font-bold'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Zap className="w-4 h-4" />
+          <span>Task Manager</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('subroutines')}
           className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all ${
             activeTab === 'subroutines'
@@ -518,6 +532,12 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
           <span>Beállítások & Napló</span>
         </button>
       </div>
+
+      {activeTab === 'tasks' && (
+        <div className="max-w-7xl mx-auto space-y-6">
+          <TaskManager />
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 1. TAB: SUBROUTINES */}

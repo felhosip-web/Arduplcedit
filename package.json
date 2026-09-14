@@ -15,8 +15,8 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^2.4.0",
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^5.2.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
@@ -25,7 +25,6 @@
     "react-dom": "^19.0.1",
     "react-hot-toast": "^2.6.0",
     "react-zoom-pan-pinch": "^4.2.0",
-    "vite": "^6.2.3",
     "xml2js": "^0.6.2",
     "zod": "^4.6.4",
     "zustand": "^5.0.15"
@@ -39,6 +38,6 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.4.3"
   }
 }
