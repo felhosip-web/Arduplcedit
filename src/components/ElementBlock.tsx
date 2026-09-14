@@ -1,5 +1,6 @@
 import React from 'react';
 import { LadderElement } from '../types';
+import { useStore } from '../store/useStore';
 import { Settings2, Trash2, Cpu, Clock, Hash, Activity, Zap, Radio, HardDrive, Layers, ListOrdered, ArrowRightLeft, Calendar } from 'lucide-react';
 
 interface ElementBlockProps {
@@ -11,9 +12,10 @@ interface ElementBlockProps {
   onSelect: (el: LadderElement) => void;
   onDelete: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
-export const ElementBlock: React.FC<ElementBlockProps> = ({
+export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   element,
   isActive,
   isSimulating,
@@ -21,9 +23,28 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
   counterState,
   onSelect,
   onDelete,
-  onTunePid
+  onTunePid,
+  onContextMenu
 }) => {
   const isPassing = isSimulating && isActive;
+
+  // Resolve variable reference to name if it's an ID
+  const { variables, constants } = useStore(state => state.history.present);
+  const resolveVariableName = (varIdOrName?: string) => {
+    if (!varIdOrName) return undefined;
+    if (varIdOrName.startsWith('var_')) {
+       const variable = variables?.find(v => v.id === varIdOrName);
+       if (variable) return variable.name;
+    }
+    if (varIdOrName.startsWith('const_')) {
+       const constant = constants?.find(c => c.id === varIdOrName);
+       if (constant) return constant.name;
+    }
+    return varIdOrName;
+  };
+
+  const resolvedVariable = resolveVariableName(element.variable);
+  const resolvedTargetVar = resolveVariableName(element.targetVariable);
 
   // Render authentic PLC visual symbol based on element type
   const renderSymbol = () => {
@@ -82,13 +103,14 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
         );
 
       case 'ANALOG_CMP':
+      case 'VAR_CMP':
         return (
           <div className="flex items-center justify-center font-mono select-none">
             <span className={`w-2 h-0.5 ${isPassing ? 'bg-emerald-400' : 'bg-slate-400'}`}></span>
             <div className={`px-2 py-1 border border-slate-700 bg-slate-800 rounded text-xs flex flex-col items-center ${
               isPassing ? 'border-emerald-500 text-emerald-300 bg-emerald-950/40 ring-1 ring-emerald-500' : 'text-slate-200'
             }`}>
-              <div className="font-semibold">{element.variable || 'A0'}</div>
+              <div className="font-semibold">{resolvedVariable || 'A0'}</div>
               <div className="text-[11px] text-amber-400 font-mono">{element.compareOp || '>'} {element.compareValue ?? 500}</div>
             </div>
             <span className={`w-2 h-0.5 ${isPassing ? 'bg-emerald-400' : 'bg-slate-400'}`}></span>
@@ -284,7 +306,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="font-bold text-amber-400 flex items-center gap-1">
                 <Clock className="w-3 h-3" /> {element.type}
               </span>
-              <span className="font-mono text-[11px] text-slate-300">{element.variable || 'T1'}</span>
+              <span className="font-mono text-[11px] text-slate-300">{resolvedVariable || 'T1'}</span>
             </div>
             <div className="flex justify-between text-[11px] font-mono text-slate-300 mb-1">
               <span>PT: {element.presetMs || 1000}ms</span>
@@ -308,7 +330,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="font-bold text-indigo-400 flex items-center gap-1">
                 <Hash className="w-3 h-3" /> {element.type}
               </span>
-              <span className="font-mono text-slate-300">{element.variable || 'C1'}</span>
+              <span className="font-mono text-slate-300">{resolvedVariable || 'C1'}</span>
             </div>
             <div className="flex justify-between text-[11px] font-mono text-slate-300">
               <span>Cél: {element.presetCount || 5}</span>
@@ -359,7 +381,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-slate-400 font-mono">{element.pin || 'D7'}</span>
             </div>
             <div className="text-[11px] font-mono text-amber-300 mt-0.5">
-              → {element.variable || 'DHT_TEMP'}
+              → {resolvedVariable || 'DHT_TEMP'}
             </div>
           </div>
         );
@@ -391,7 +413,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-cyan-500">CH:{element.nrfChannel ?? 76}</span>
             </div>
             <div className="text-[10px] font-mono text-slate-200 truncate mt-0.5">
-              {element.variable ? `Var: ${element.variable}` : `"${element.nrfPayload || 'DATA'}"`}
+              {resolvedVariable ? `Var: ${resolvedVariable}` : `"${element.nrfPayload || 'DATA'}"`}
             </div>
           </div>
         );
@@ -408,7 +430,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-cyan-500">P{element.nrfPipe ?? 1}</span>
             </div>
             <div className="text-[10px] font-mono text-cyan-200 truncate mt-0.5">
-              → {element.targetVariable || element.variable || 'V_RX'}
+              → {resolvedTargetVar || resolvedVariable || 'V_RX'}
             </div>
           </div>
         );
@@ -439,7 +461,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-amber-500">{element.eepromAddress || '0x0010'}</span>
             </div>
             <div className="text-[10px] font-mono text-slate-200 truncate mt-0.5">
-              {element.variable || element.eepromDataValue || '0'} ({element.eepromDataType || 'float'})
+              {resolvedVariable || element.eepromDataValue || '0'} ({element.eepromDataType || 'float'})
             </div>
           </div>
         );
@@ -456,7 +478,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-amber-500">{element.eepromAddress || '0x0010'}</span>
             </div>
             <div className="text-[10px] font-mono text-amber-200 truncate mt-0.5">
-              → {element.targetVariable || element.variable || 'VAR'}
+              → {resolvedTargetVar || resolvedVariable || 'VAR'}
             </div>
           </div>
         );
@@ -491,7 +513,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-teal-500">max:{element.maxSize ?? 8}</span>
             </div>
             <div className="text-[10px] font-mono text-teal-100 truncate mt-0.5">
-              {element.variable || element.pushValue || 'VAL'} → {element.arrayName || 'QUEUE'}
+              {resolvedVariable || element.pushValue || 'VAL'} → {element.arrayName || 'QUEUE'}
             </div>
           </div>
         );
@@ -508,7 +530,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-teal-500">oldest[0]</span>
             </div>
             <div className="text-[10px] font-mono text-teal-100 truncate mt-0.5">
-              {element.arrayName || 'QUEUE'} → {element.targetVariable || 'VAR'}
+              {element.arrayName || 'QUEUE'} → {resolvedTargetVar || 'VAR'}
             </div>
           </div>
         );
@@ -525,7 +547,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-indigo-400">max:{element.maxSize ?? 8}</span>
             </div>
             <div className="text-[10px] font-mono text-indigo-100 truncate mt-0.5">
-              {element.variable || element.pushValue || 'VAL'} → TOP({element.arrayName || 'STACK'})
+              {resolvedVariable || element.pushValue || 'VAL'} → TOP({element.arrayName || 'STACK'})
             </div>
           </div>
         );
@@ -542,7 +564,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-indigo-400">top</span>
             </div>
             <div className="text-[10px] font-mono text-indigo-100 truncate mt-0.5">
-              TOP({element.arrayName || 'STACK'}) → {element.targetVariable || 'VAR'}
+              TOP({element.arrayName || 'STACK'}) → {resolvedTargetVar || 'VAR'}
             </div>
           </div>
         );
@@ -612,7 +634,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
               <span className="text-[10px] font-mono text-cyan-400">{element.expanderPin || element.pin || 'EXP_A0'}</span>
             </div>
             <div className="text-[10px] font-mono text-cyan-100 truncate mt-0.5">
-              PIN → {element.expanderTargetVar || element.targetVariable || 'VAR'}
+              PIN → {resolvedTargetVar || resolvedVariable || 'VAR'}
             </div>
           </div>
         );
@@ -744,7 +766,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
           }`}>
             <div className="flex items-center justify-between font-bold text-[11px]">
               <span className="text-sky-400">{element.name}</span>
-              <span className="text-[10px] font-mono text-slate-400">{element.pin || element.variable || 'CUST'}</span>
+              <span className="text-[10px] font-mono text-slate-400">{element.pin || resolvedVariable || 'CUST'}</span>
             </div>
             <div className="text-[10px] font-mono text-slate-300 truncate mt-0.5">
               {element.comment || 'Egyedi modul'}
@@ -764,6 +786,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
   return (
     <div
       onClick={() => onSelect(element)}
+      onContextMenu={onContextMenu}
       className={`group relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all cursor-pointer select-none ${
         isPassing
           ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
@@ -788,17 +811,47 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
       </div>
 
       {/* Element Type Subtitle / Pin */}
-      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 font-mono">
+      <div className="text-[10px] text-slate-400 mt-1 flex flex-col items-center gap-1 font-mono w-full">
+        {resolvedVariable && resolvedVariable !== element.name && (
+           <span className="text-[9px] text-slate-500 font-bold truncate max-w-full">
+             Ref: {resolvedVariable}
+           </span>
+        )}
         {element.category === 'library_module' && (
           <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/60">
             LIB
           </span>
         )}
-        {element.comment && (
-          <span className="text-slate-400 truncate max-w-[90px]" title={element.comment}>
-            {element.comment}
-          </span>
-        )}
+      </div>
+
+      {/* Detailed Tooltip on Hover */}
+      <div className="hidden group-hover:block absolute top-full mt-2 left-1/2 -translate-x-1/2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 p-3 text-left pointer-events-none">
+        <div className="text-xs font-bold text-sky-400 border-b border-slate-700 pb-1 mb-1 truncate">
+          {element.name}
+        </div>
+        <div className="space-y-1 text-[10px] font-mono text-slate-300">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Típus:</span>
+            <span>{element.type}</span>
+          </div>
+          {resolvedVariable && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Változó/Ref:</span>
+              <span className="text-amber-300 font-bold truncate max-w-[80px]">{resolvedVariable}</span>
+            </div>
+          )}
+          {element.pin && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Pin:</span>
+              <span className="text-cyan-300">{element.pin}</span>
+            </div>
+          )}
+          {element.comment && (
+            <div className="mt-1 pt-1 border-t border-slate-700/50 text-slate-400 italic font-sans whitespace-pre-wrap">
+              {element.comment}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Hover action buttons (Edit & Delete & Tune) */}
@@ -843,4 +896,4 @@ export const ElementBlock: React.FC<ElementBlockProps> = ({
       )}
     </div>
   );
-};
+});

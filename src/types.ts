@@ -98,7 +98,7 @@ export interface LadderElement {
   category: ElementCategory;
   name: string;             // Display name / tag e.g. "START_BTN", "MOTOR_RELAY"
   pin?: string;             // e.g. "D2", "D8", "A0"
-  variable?: string;        // e.g. "M0", "V_TEMP_C", "COUNT_1"
+  variable?: string;        // Contains PLCVariable.id or raw string fallback
   presetMs?: number;        // for TON, TOF, TP (in milliseconds)
   presetCount?: number;     // for CTU, CTD
   compareOp?: CompareOperator; // for ANALOG_CMP, VAR_CMP
@@ -535,6 +535,19 @@ export interface InterruptLogEntry {
 // -------------------------------------------------------------
 // COMPLETE PROJECT DATA STRUCTURE (MENTÉS ÉS VISSZATÖLTÉS)
 // -------------------------------------------------------------
+
+export interface ActionLogEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  details: string;
+}
+
+export interface FeatureFlags {
+  enableExperimentalBlocks: boolean;
+  enableCloudSync: boolean;
+  enableAdvancedDiagnostics: boolean;
+}
 
 export interface ProjectMetadata {
   id?: string;

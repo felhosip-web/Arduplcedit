@@ -18,3 +18,39 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 1);
 }
+
+/* Print and PDF Export Styles */
+@media print {
+  /* Hide UI elements that are not part of the ladder diagram */
+  header, nav, aside, .no-print, button:not(.print-visible) {
+    display: none !important;
+  }
+
+  /* Reset background colors to white and text to black for better contrast on paper */
+  body, #root, .bg-slate-950, .bg-slate-900, .bg-slate-800 {
+    background-color: white !important;
+    color: black !important;
+    border-color: #ccc !important;
+  }
+
+  /* Ensure the main canvas takes full width and expands */
+  .flex-1.bg-slate-950.overflow-hidden {
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Force elements to render borders properly in print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Fix absolute positioning and constraints for transform wrapper */
+  .react-transform-wrapper, .react-transform-component {
+    width: 100% !important;
+    transform: none !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+}
