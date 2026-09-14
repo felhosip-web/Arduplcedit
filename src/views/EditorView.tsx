@@ -6,6 +6,7 @@ import { DndContext, DragEndEvent, DragOverlay, defaultDropAnimationSideEffects 
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { ElementBlock } from '../components/ElementBlock';
 import { toast } from 'react-hot-toast';
+import { addElementToRung, createEmptyRung, deleteElementFromRungs, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
 import {
   Layers,
   Plus,
@@ -97,68 +98,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const handleAddElement = useCallback((template: Partial<LadderElement>) => {
     if (activeRungs.length === 0) return;
     const targetIdx = Math.min(selectedRungIndex, activeRungs.length - 1);
-    const targetRung = activeRungs[targetIdx];
-
-    const newElement: LadderElement = {
-      id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      type: template.type || 'NO_CONTACT',
-      category: template.category || 'contact',
-      name: template.name || 'ELEM',
-      pin: template.pin,
-      variable: template.variable,
-      libraryId: template.libraryId,
-      presetMs: template.presetMs,
-      presetCount: template.presetCount,
-      servoAngle: template.servoAngle,
-      lcdText: template.lcdText,
-      subroutineId: template.subroutineId,
-      subroutineBindings: template.subroutineBindings,
-      customCppCall: template.customCppCall,
-      comment: template.comment
-    };
-
-    const updatedRungs = [...activeRungs];
-    const isCoilOrModule = template.category === 'coil' || template.category === 'library_module' || template.type === 'SUBROUTINE_CALL';
-
-    if (isCoilOrModule) {
-      updatedRungs[targetIdx] = {
-        ...targetRung,
-        coils: [...targetRung.coils, newElement]
-      };
-    } else {
-      // Add to branch 0
-      const currentBranches = [...targetRung.branches];
-      if (currentBranches.length === 0) {
-        currentBranches.push({ id: `b_${Date.now()}`, elements: [newElement] });
-      } else {
-        currentBranches[0] = {
-          ...currentBranches[0],
-          elements: [...currentBranches[0].elements, newElement]
-        };
-      }
-      updatedRungs[targetIdx] = {
-        ...targetRung,
-        branches: currentBranches
-      };
-    }
-
-    handleUpdateActiveRungs(updatedRungs);
+    handleUpdateActiveRungs(addElementToRung(activeRungs, targetIdx, template));
   }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs]);
 
-  // Canvas Rung actions
   const handleAddRung = useCallback(() => {
-    const newRung: Rung = {
-      id: `rung_${Date.now()}`,
-      number: activeRungs.length,
-      comment: isEditingSubroutine ? `Alprogram logikai lépés #${activeRungs.length}` : '',
-      branches: [
-        {
-          id: `branch_${Date.now()}`,
-          elements: []
-        }
-      ],
-      coils: []
-    };
+    const newRung = createEmptyRung(activeRungs.length, isEditingSubroutine);
     handleUpdateActiveRungs([...activeRungs, newRung]);
     onSelectRung(activeRungs.length);
   }, [activeRungs, isEditingSubroutine, handleUpdateActiveRungs, onSelectRung]);
@@ -173,34 +117,14 @@ export const EditorView: React.FC<EditorViewProps> = ({
   }, [activeRungs, handleUpdateActiveRungs, selectedRungIndex, onSelectRung]);
 
   const handleDuplicateRung = useCallback((id: string) => {
-    const rungToDup = activeRungs.find((r) => r.id === id);
-    if (!rungToDup) return;
-    const dup: Rung = {
-      ...rungToDup,
-      id: `rung_${Date.now()}`,
-      number: activeRungs.length,
-      branches: rungToDup.branches.map((b) => ({
-        ...b,
-        id: `b_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-        elements: b.elements.map((el) => ({ ...el, id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 5)}` }))
-      })),
-      coils: rungToDup.coils.map((c) => ({ ...c, id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 5)}` }))
-    };
-    handleUpdateActiveRungs([...activeRungs, dup]);
+    handleUpdateActiveRungs(duplicateRung(activeRungs, id));
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleMoveRung = useCallback((id: string, direction: 'up' | 'down') => {
-    const index = activeRungs.findIndex((r) => r.id === id);
-    if (index === -1) return;
-    const newIdx = direction === 'up' ? index - 1 : index + 1;
-    if (newIdx < 0 || newIdx >= activeRungs.length) return;
-
-    const copy = [...activeRungs];
-    const temp = copy[index];
-    copy[index] = copy[newIdx];
-    copy[newIdx] = temp;
-    handleUpdateActiveRungs(copy.map((r, i) => ({ ...r, number: i })));
-    onSelectRung(newIdx);
+    const updated = moveRung(activeRungs, id, direction);
+    handleUpdateActiveRungs(updated);
+    const newIdx = updated.findIndex((r) => r.id === id);
+    if (newIdx !== -1) onSelectRung(newIdx);
   }, [activeRungs, handleUpdateActiveRungs, onSelectRung]);
 
   const handleUpdateRungComment = useCallback((id: string, comment: string) => {
@@ -208,41 +132,15 @@ export const EditorView: React.FC<EditorViewProps> = ({
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleAddParallelBranch = useCallback((rungId: string) => {
-    handleUpdateActiveRungs(
-      activeRungs.map((r) => {
-        if (r.id !== rungId) return r;
-        return {
-          ...r,
-          branches: [...r.branches, { id: `branch_${Date.now()}`, elements: [] }]
-        };
-      })
-    );
+    handleUpdateActiveRungs(addParallelBranch(activeRungs, rungId));
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleDeleteParallelBranch = useCallback((rungId: string, branchId: string) => {
-    handleUpdateActiveRungs(
-      activeRungs.map((r) => {
-        if (r.id !== rungId) return r;
-        if (r.branches.length <= 1) return r;
-        return {
-          ...r,
-          branches: r.branches.filter((b) => b.id !== branchId)
-        };
-      })
-    );
+    handleUpdateActiveRungs(deleteParallelBranch(activeRungs, rungId, branchId));
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleDeleteElement = useCallback((id: string) => {
-    handleUpdateActiveRungs(
-      activeRungs.map((r) => ({
-        ...r,
-        branches: r.branches.map((b) => ({
-          ...b,
-          elements: b.elements.filter((el) => el.id !== id)
-        })),
-        coils: r.coils.filter((c) => c.id !== id)
-      }))
-    );
+    handleUpdateActiveRungs(deleteElementFromRungs(activeRungs, id));
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleDropElementOnBranch = useCallback((

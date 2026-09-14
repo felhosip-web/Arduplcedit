@@ -37,6 +37,7 @@ import {
 import { DataManager } from '../components/management/DataManager';
 import { ProtocolsManager } from '../components/management/ProtocolsManager';
 import { InterruptsManager } from '../components/management/InterruptsManager';
+import { useStore } from '../store/useStore';
 
 interface ManagementViewProps {
   subroutines: Subroutine[];
@@ -119,7 +120,9 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
   interrupts,
   onUpdateInterrupts
 }) => {
-  const [activeTab, setActiveTab] = useState<'subroutines' | 'modules' | 'data' | 'protocols' | 'interrupts' | 'libraries'>('subroutines');
+  const [activeTab, setActiveTab] = useState<'subroutines' | 'modules' | 'data' | 'protocols' | 'interrupts' | 'libraries' | 'settings'>('subroutines');
+
+  const { actionLogs, featureFlags, toggleFeatureFlag, clearActionLogs } = useStore();
 
   // Subroutine Modal/Editor state
   const [subModalOpen, setSubModalOpen] = useState(false);
@@ -501,6 +504,19 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
           <BookOpen className="w-4 h-4" />
           <span>Arduino Könyvtárak ({libraries.length})</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('settings')}
+          className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'settings'
+              ? 'border-fuchsia-500 text-fuchsia-400 font-bold'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Beállítások & Napló</span>
+        </button>
       </div>
 
       {/* ======================================================== */}
@@ -825,6 +841,108 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
           onUpdateVariable={onUpdateVariable}
           subroutines={subroutines}
         />
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. TAB: SETTINGS & ACTION LOG */}
+      {/* ======================================================== */}
+      {activeTab === 'settings' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Feature Flags */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 h-fit">
+            <div className="border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-fuchsia-400" />
+                Feature Flags (Fejlesztői beállítások)
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Kísérleti funkciók be- és kikapcsolása a szerkesztőben.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-3 bg-slate-950/50 border border-slate-800 rounded-lg cursor-pointer hover:border-fuchsia-500/50 transition-colors">
+                <div>
+                  <span className="text-sm font-bold text-slate-200 block">Kísérleti Blokkok Engedélyezése</span>
+                  <span className="text-xs text-slate-400">Új, még tesztelés alatt álló PLC funkcióblokkok (pl. AI predikció).</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={featureFlags.enableExperimentalBlocks}
+                  onChange={() => toggleFeatureFlag('enableExperimentalBlocks')}
+                  className="w-4 h-4 rounded text-fuchsia-500 accent-fuchsia-500"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 bg-slate-950/50 border border-slate-800 rounded-lg cursor-pointer hover:border-fuchsia-500/50 transition-colors">
+                <div>
+                  <span className="text-sm font-bold text-slate-200 block">Felhő Szinkronizáció</span>
+                  <span className="text-xs text-slate-400">Projektek mentése külső adatbázisba (előkészületben).</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={featureFlags.enableCloudSync}
+                  onChange={() => toggleFeatureFlag('enableCloudSync')}
+                  className="w-4 h-4 rounded text-fuchsia-500 accent-fuchsia-500"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 bg-slate-950/50 border border-slate-800 rounded-lg cursor-pointer hover:border-fuchsia-500/50 transition-colors">
+                <div>
+                  <span className="text-sm font-bold text-slate-200 block">Haladó Diagnosztika</span>
+                  <span className="text-xs text-slate-400">Részletes profiler és oszcilloszkóp a szimulátorban.</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={featureFlags.enableAdvancedDiagnostics}
+                  onChange={() => toggleFeatureFlag('enableAdvancedDiagnostics')}
+                  className="w-4 h-4 rounded text-fuchsia-500 accent-fuchsia-500"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Action Logs */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-[500px]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-sky-400" />
+                  Eseménynapló (Action Log)
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Fejlesztői napló: felhasználói akciók és domén műveletek listája.
+                </p>
+              </div>
+              <button
+                onClick={clearActionLogs}
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Ürítés
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+              {actionLogs.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-500">A napló üres.</div>
+              ) : (
+                actionLogs.map(log => (
+                  <div key={log.id} className="p-2.5 bg-slate-950 rounded-lg border border-slate-800/80">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold text-sky-400 bg-sky-950/50 px-1.5 py-0.5 rounded border border-sky-800/50">
+                        {log.action}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 font-mono break-all">{log.details}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ======================================================== */}

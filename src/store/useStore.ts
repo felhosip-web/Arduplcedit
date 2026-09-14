@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig } from '../types';
+import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement } from '../types';
 import { EXAMPLE_PROJECTS } from '../data/exampleProjects';
 import { DEFAULT_SUBROUTINES } from '../data/defaultSubroutines';
 import { DEFAULT_VARIABLES, DEFAULT_CONSTANTS, DEFAULT_ARRAYS } from '../data/defaultVariables';
 import { DEFAULT_PROTOCOLS } from '../data/defaultProtocols';
 import { DEFAULT_INTERRUPTS } from '../data/defaultInterrupts';
+import { addElementToRung, deleteElementFromRungs, createEmptyRung, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
 
 const INITIAL_SIMULATION_STATE: SimulationState = {
   isRunning: false,
@@ -94,6 +95,10 @@ interface AppState {
   // Simulation State
   simulationState: SimulationState;
 
+  // Logs & Settings
+  actionLogs: ActionLogEntry[];
+  featureFlags: FeatureFlags;
+
   // Actions
   setRungs: (updater: Rung[] | ((prev: Rung[]) => Rung[])) => void;
   setSetupRungs: (updater: Rung[] | ((prev: Rung[]) => Rung[])) => void;
@@ -104,6 +109,21 @@ interface AppState {
   setArrays: (updater: PLCArray[] | ((prev: PLCArray[]) => PLCArray[])) => void;
   setProtocols: (updater: ProtocolConfigs | ((prev: ProtocolConfigs) => ProtocolConfigs)) => void;
   setInterrupts: (updater: InterruptsConfig | ((prev: InterruptsConfig) => InterruptsConfig)) => void;
+
+  // Domain Actions wrapper
+  logAction: (action: string, details: string) => void;
+  toggleFeatureFlag: (flag: keyof FeatureFlags) => void;
+  clearActionLogs: () => void;
+
+  addRung: (isSubroutine: boolean) => void;
+  deleteRung: (id: string) => void;
+  duplicateRung: (id: string) => void;
+  moveRung: (id: string, direction: 'up' | 'down') => void;
+  updateRungComment: (id: string, comment: string) => void;
+  addParallelBranch: (rungId: string) => void;
+  deleteParallelBranch: (rungId: string, branchId: string) => void;
+  deleteElement: (id: string) => void;
+  addElement: (targetIdx: number, elementData: Partial<LadderElement>) => void;
 
   _updatePresent: (newPresent: LadderState) => void;
 
@@ -153,6 +173,31 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   simulationState: INITIAL_SIMULATION_STATE,
+
+  actionLogs: [
+    { id: 'init_1', timestamp: new Date().toISOString(), action: 'APP_START', details: 'Application loaded successfully.' }
+  ],
+
+  featureFlags: {
+    enableExperimentalBlocks: false,
+    enableCloudSync: false,
+    enableAdvancedDiagnostics: true
+  },
+
+  logAction: (action, details) => set((state) => ({
+    actionLogs: [{
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
+      timestamp: new Date().toISOString(),
+      action,
+      details
+    }, ...state.actionLogs].slice(0, 100) // Keep last 100
+  })),
+
+  toggleFeatureFlag: (flag) => set((state) => ({
+    featureFlags: { ...state.featureFlags, [flag]: !state.featureFlags[flag] }
+  })),
+
+  clearActionLogs: () => set({ actionLogs: [] }),
 
   setSimulationState: (updater) => set((state) => ({
     simulationState: typeof updater === 'function' ? updater(state.simulationState) : updater
@@ -218,6 +263,68 @@ export const useStore = create<AppState>((set, get) => ({
     const state = get();
     const newInterrupts = typeof updater === 'function' ? updater(state.history.present.interrupts) : updater;
     get()._updatePresent({ ...state.history.present, interrupts: newInterrupts });
+  },
+
+  // --- Domain Logic Wrappers ---
+
+  addRung: (isSubroutine) => {
+    const state = get();
+    const newRung = createEmptyRung(state.history.present.rungs.length, isSubroutine);
+    get().setRungs(prev => [...prev, newRung]);
+    get().logAction('ADD_RUNG', `Added a new empty rung (isSubroutine: ${isSubroutine})`);
+  },
+
+  deleteRung: (id) => {
+    const state = get();
+    const rungs = state.history.present.rungs;
+    if (rungs.length <= 1) return;
+    const filtered = rungs.filter(r => r.id !== id).map((r, i) => ({ ...r, number: i }));
+    get().setRungs(filtered);
+    get().logAction('DELETE_RUNG', `Deleted rung ID: ${id}`);
+  },
+
+  duplicateRung: (id) => {
+    const state = get();
+    const updated = duplicateRung(state.history.present.rungs, id);
+    get().setRungs(updated);
+  },
+
+  moveRung: (id, direction) => {
+    const state = get();
+    const updated = moveRung(state.history.present.rungs, id, direction);
+    get().setRungs(updated);
+  },
+
+  updateRungComment: (id, comment) => {
+    get().setRungs(prev => prev.map(r => (r.id === id ? { ...r, comment } : r)));
+  },
+
+  addParallelBranch: (rungId) => {
+    const state = get();
+    const updated = addParallelBranch(state.history.present.rungs, rungId);
+    get().setRungs(updated);
+  },
+
+  deleteParallelBranch: (rungId, branchId) => {
+    const state = get();
+    const updated = deleteParallelBranch(state.history.present.rungs, rungId, branchId);
+    get().setRungs(updated);
+  },
+
+  deleteElement: (id) => {
+    const state = get();
+    // Also consider setupRungs and subroutines if we want to delete globally.
+    // For now we just apply it to main rungs. The component logic can handle which array to update.
+    const updated = deleteElementFromRungs(state.history.present.rungs, id);
+    get().setRungs(updated);
+    get().logAction('DELETE_ELEMENT', `Deleted element ID: ${id}`);
+  },
+
+  addElement: (targetIdx, elementData) => {
+    const state = get();
+    const updated = addElementToRung(state.history.present.rungs, targetIdx, elementData);
+    get().setRungs(updated);
+    get().logAction('ADD_ELEMENT', `Added element ${elementData.name} to rung at index ${targetIdx}`);
   },
 
   undo: () => set((state) => {

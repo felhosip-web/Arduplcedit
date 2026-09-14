@@ -536,6 +536,19 @@ export interface InterruptLogEntry {
 // COMPLETE PROJECT DATA STRUCTURE (MENTÉS ÉS VISSZATÖLTÉS)
 // -------------------------------------------------------------
 
+export interface ActionLogEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  details: string;
+}
+
+export interface FeatureFlags {
+  enableExperimentalBlocks: boolean;
+  enableCloudSync: boolean;
+  enableAdvancedDiagnostics: boolean;
+}
+
 export interface ProjectMetadata {
   id?: string;
   name: string;
