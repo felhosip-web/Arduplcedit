@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement } from '../types';
+import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement, Task } from '../types';
 import { EXAMPLE_PROJECTS } from '../data/exampleProjects';
 import { DEFAULT_SUBROUTINES } from '../data/defaultSubroutines';
 import { DEFAULT_VARIABLES, DEFAULT_CONSTANTS, DEFAULT_ARRAYS } from '../data/defaultVariables';
@@ -80,6 +80,7 @@ export interface LadderState {
   arrays: PLCArray[];
   protocols: ProtocolConfigs;
   interrupts: InterruptsConfig;
+  tasks?: Task[];
 }
 
 interface HistoryState {
@@ -98,6 +99,9 @@ interface AppState {
   // Logs & Settings
   actionLogs: ActionLogEntry[];
   featureFlags: FeatureFlags;
+  activeProgramId?: string;
+  setTasks: (tasks: Task[]) => void;
+  setActiveProgramId: (id: string | undefined) => void;
 
   // Actions
   setRungs: (updater: Rung[] | ((prev: Rung[]) => Rung[])) => void;
@@ -163,6 +167,20 @@ const initialLadderState: LadderState = {
   arrays: initialSavedState?.arrays?.length > 0 ? initialSavedState.arrays : DEFAULT_ARRAYS,
   protocols: initialSavedState?.protocols ? { ...DEFAULT_PROTOCOLS, ...initialSavedState.protocols } : DEFAULT_PROTOCOLS,
   interrupts: initialSavedState?.interrupts ? { ...DEFAULT_INTERRUPTS, ...initialSavedState.interrupts } : DEFAULT_INTERRUPTS
+,
+  tasks: initialSavedState?.tasks || [{
+    id: 'task_main',
+    name: 'Main Task',
+    type: 'cyclic',
+    intervalMs: 10,
+    priority: 1,
+    programs: [{
+      id: 'prog_main',
+      name: 'Main Program',
+      type: 'ladder',
+      rungs: initialSavedState?.rungs?.length > 0 ? initialSavedState.rungs : EXAMPLE_PROJECTS[0].rungs
+    }]
+  }]
 };
 
 export const useStore = create<AppState>((set, get) => ({
@@ -204,6 +222,18 @@ export const useStore = create<AppState>((set, get) => ({
   })),
 
   // Internal helper to push a new state to history
+  setTasks: (tasks: Task[]) => set((state) => {
+    const newPresent = { ...state.history.present, tasks };
+    return {
+      history: {
+        past: [...state.history.past, state.history.present],
+        present: newPresent,
+        future: [],
+      }
+    };
+  }),
+  setActiveProgramId: (id) => set({ activeProgramId: id }),
+
   _updatePresent: (newPresent: LadderState) => set((state) => {
     if (JSON.stringify(state.history.present) === JSON.stringify(newPresent)) {
       return state;

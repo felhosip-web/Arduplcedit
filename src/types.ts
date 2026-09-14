@@ -560,6 +560,47 @@ export interface ProjectMetadata {
   savedAt: string;
 }
 
+
+export type ProgramType = 'ladder' | 'fbd';
+
+export interface FBDBlock {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  properties?: Record<string, any>;
+}
+
+export interface FBDConnection {
+  id: string;
+  sourceBlockId: string;
+  sourcePin: string;
+  targetBlockId: string;
+  targetPin: string;
+}
+
+export interface FBDDiagram {
+  blocks: FBDBlock[];
+  connections: FBDConnection[];
+}
+
+export interface Program {
+  id: string;
+  name: string;
+  type: ProgramType;
+  rungs?: Rung[];
+  fbd?: FBDDiagram;
+}
+
+export interface Task {
+  id: string;
+  name: string;
+  type: 'cyclic' | 'continuous';
+  intervalMs?: number;
+  priority: number;
+  programs: Program[];
+}
+
 export interface ProjectData {
   version: string;
   metadata?: ProjectMetadata;
@@ -575,6 +616,7 @@ export interface ProjectData {
   arrays: PLCArray[];
   protocols: ProtocolConfigs;
   interrupts: InterruptsConfig;
+  tasks?: Task[];
 }
 
 export interface UartLogEntry {
