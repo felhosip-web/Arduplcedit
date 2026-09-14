@@ -131,11 +131,24 @@ export const DataManager: React.FC<DataManagerProps> = ({
   // --- Handlers: Variable ---
   const handleOpenNewVar = () => {
     setEditingVarId(null);
-    setVarName('V_STATUS');
-    setVarType('int');
-    setVarInitialVal('0');
+
+    // Auto-increment logic for 'M' variables (Memory flags)
+    let nextIndex = 0;
+    variables.forEach(v => {
+      const match = v.name.match(/^M(\d+)$/);
+      if (match) {
+        const idx = parseInt(match[1], 10);
+        if (idx >= nextIndex) {
+          nextIndex = idx + 1;
+        }
+      }
+    });
+
+    setVarName(`M${nextIndex}`);
+    setVarType('bool');
+    setVarInitialVal('false');
     setVarIsRetentive(false);
-    setVarDesc('Új folyamatváltozó');
+    setVarDesc('Új folyamatváltozó / Belső jelző (Flag)');
     setVarModalOpen(true);
   };
 
@@ -162,10 +175,21 @@ export const DataManager: React.FC<DataManagerProps> = ({
       parsedVal = varInitialVal.toLowerCase() === 'true' || varInitialVal === '1';
     }
 
+    const formattedName = varName.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+
+    // Collision check: prevent duplicate variable or constant names
+    const isDuplicate = variables.some(v => v.name === formattedName && v.id !== editingVarId) ||
+                        constants.some(c => c.name === formattedName);
+
+    if (isDuplicate) {
+      alert(`Hiba: A(z) ${formattedName} név már foglalt egy másik változó vagy konstans által! Kérjük, válasszon egyedit.`);
+      return;
+    }
+
     if (editingVarId) {
       onUpdateVariable({
         id: editingVarId,
-        name: varName.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+        name: formattedName,
         type: varType,
         initialValue: parsedVal,
         isRetentive: varIsRetentive,
@@ -174,7 +198,7 @@ export const DataManager: React.FC<DataManagerProps> = ({
     } else {
       onAddVariable({
         id: `var_${Date.now()}`,
-        name: varName.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+        name: formattedName,
         type: varType,
         initialValue: parsedVal,
         isRetentive: varIsRetentive,

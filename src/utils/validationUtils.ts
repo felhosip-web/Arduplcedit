@@ -1,4 +1,4 @@
-import { Rung, LadderElement, ElementCategory } from '../types';
+import { Rung, LadderElement, ElementCategory, PLCVariable, PLCConstant, PLCArray } from '../types';
 
 export interface ValidationError {
   rungId: string;
@@ -8,9 +8,9 @@ export interface ValidationError {
 const ADDRESS_REGEX = /^(X|Y|M|T|C|D)\d+$/;
 
 /**
- * Validates a single rung for structural and logical errors.
+ * Validates a single rung for structural, logical, and reference errors.
  */
-export function validateRung(rung: Rung): ValidationError[] {
+export function validateRung(rung: Rung, variables?: PLCVariable[], constants?: PLCConstant[], arrays?: PLCArray[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
   // 1. A rung should have at least one branch with elements, or at least one coil.
@@ -46,14 +46,30 @@ export function validateRung(rung: Rung): ValidationError[] {
     }
   };
 
+  const validateReference = (el: LadderElement, refId?: string) => {
+    if (!refId || !variables || !constants) return;
+
+    // Check if it looks like an ID
+    if (refId.startsWith('var_') || refId.startsWith('const_')) {
+      const exists = variables.some(v => v.id === refId) || constants.some(c => c.id === refId);
+      if (!exists) {
+        errors.push({ rungId: rung.id, message: `Árva hivatkozás a(z) ${el.name} elemben. A változó vagy konstans törölve lett.` });
+      }
+    }
+  };
+
   rung.branches.forEach(branch => branch.elements.forEach(el => {
     validateAddress(el, el.variable);
     validateAddress(el, el.pin);
+    validateReference(el, el.variable);
+    validateReference(el, el.targetVariable);
   }));
 
   rung.coils.forEach(coil => {
     validateAddress(coil, coil.variable);
     validateAddress(coil, coil.pin);
+    validateReference(coil, coil.variable);
+    validateReference(coil, coil.targetVariable);
   });
 
   return errors;
@@ -62,10 +78,10 @@ export function validateRung(rung: Rung): ValidationError[] {
 /**
  * Validates a list of rungs.
  */
-export function validateRungs(rungs: Rung[]): ValidationError[] {
+export function validateRungs(rungs: Rung[], variables?: PLCVariable[], constants?: PLCConstant[], arrays?: PLCArray[]): ValidationError[] {
   let allErrors: ValidationError[] = [];
   rungs.forEach(rung => {
-    allErrors = [...allErrors, ...validateRung(rung)];
+    allErrors = [...allErrors, ...validateRung(rung, variables, constants, arrays)];
   });
   return allErrors;
 }

@@ -3,6 +3,26 @@ import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
 import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle } from 'lucide-react';
 import { validateRungs, ValidationError } from '../utils/validationUtils';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { ContextMenu } from './ContextMenu';
+import { useDroppable } from '@dnd-kit/core';
+import { useStore } from '../store/useStore';
+
+// Helper component for droppable zones
+const DroppableZone = ({ id, children, className }: any) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`${className} ${isOver ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110' : ''}`}
+    >
+      {children}
+    </div>
+  );
+};
 
 interface LadderCanvasProps {
   rungs: Rung[];
@@ -48,6 +68,7 @@ interface RungRowProps {
   onDeleteRung: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
   totalRungsCount: number;
+  onContextMenuOpen: (e: React.MouseEvent, element: LadderElement) => void;
 }
 
 const RungRow: React.FC<RungRowProps> = React.memo(({
@@ -72,7 +93,8 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   onDuplicateRung,
   onDeleteRung,
   onTunePid,
-  totalRungsCount
+  totalRungsCount,
+  onContextMenuOpen
 }) => {
   const [isVisible, setIsVisible] = useState(true);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -302,18 +324,12 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 {/* Branch Elements in Series */}
                 <div className="flex items-center flex-wrap gap-1">
                   {/* Drop zone before first element */}
-                  <div
-                    onDragOver={(e) => onDragOver(e, `${branch.id}_drop_0`)}
-                    onDragLeave={onDragLeave}
-                    onDrop={(e) => handleDropOnBranchLocal(e, branch.id, 0)}
-                    className={`w-4 h-9 rounded flex items-center justify-center transition-all ${
-                      dragOverTarget === `${branch.id}_drop_0`
-                        ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110'
-                        : 'hover:bg-slate-800/60'
-                    }`}
+                  <DroppableZone
+                    id={`${branch.id}_drop_0`}
+                    className="w-4 h-9 rounded flex items-center justify-center transition-all hover:bg-slate-800/60"
                   >
-                    <div className={`w-full h-0.5 ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                  </div>
+                    <div className={`w-full h-0.5 pointer-events-none ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  </DroppableZone>
 
                   {branch.elements.map((el, elIndex) => (
                     <React.Fragment key={el.id}>
@@ -326,38 +342,27 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                         onSelect={onSelectElement}
                         onDelete={onDeleteElement}
                         onTunePid={onTunePid}
+                        onContextMenu={(e) => onContextMenuOpen(e, el)}
                       />
 
                       {/* Connecting Wire & Drop zone between elements */}
-                      <div
-                        onDragOver={(e) => onDragOver(e, `${branch.id}_drop_${elIndex + 1}`)}
-                        onDragLeave={onDragLeave}
-                        onDrop={(e) => handleDropOnBranchLocal(e, branch.id, elIndex + 1)}
-                        className={`w-6 h-9 rounded flex items-center justify-center transition-all ${
-                          dragOverTarget === `${branch.id}_drop_${elIndex + 1}`
-                            ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110'
-                            : 'hover:bg-slate-800/60'
-                        }`}
+                      <DroppableZone
+                        id={`${branch.id}_drop_${elIndex + 1}`}
+                        className="w-6 h-9 rounded flex items-center justify-center transition-all hover:bg-slate-800/60"
                       >
-                        <div className={`w-full h-0.5 ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                      </div>
+                        <div className={`w-full h-0.5 pointer-events-none ${isBranchEnergized ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                      </DroppableZone>
                     </React.Fragment>
                   ))}
 
                   {/* If branch is empty, show drop placeholder */}
                   {branch.elements.length === 0 && (
-                    <div
-                      onDragOver={(e) => onDragOver(e, `${branch.id}_empty`)}
-                      onDragLeave={onDragLeave}
-                      onDrop={(e) => handleDropOnBranchLocal(e, branch.id, 0)}
-                      className={`px-4 py-2 border-2 border-dashed rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
-                        dragOverTarget === `${branch.id}_empty`
-                          ? 'border-sky-400 bg-sky-950/40 text-sky-300'
-                          : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'
-                      }`}
+                    <DroppableZone
+                      id={`${branch.id}_empty`}
+                      className="px-4 py-2 border-2 border-dashed rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Húzz ide érintkezőt
-                    </div>
+                      <Plus className="w-3.5 h-3.5 pointer-events-none" /> <span className="pointer-events-none">Húzz ide érintkezőt</span>
+                    </DroppableZone>
                   )}
                 </div>
 
@@ -397,6 +402,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 onSelect={onSelectElement}
                 onDelete={onDeleteElement}
                 onTunePid={onTunePid}
+                onContextMenu={(e) => onContextMenuOpen(e, coil)}
               />
 
               {/* Connecting wire between multiple coils */}
@@ -407,19 +413,14 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
           ))}
 
           {/* Drop zone to add another coil/module */}
-          <div
-            onDragOver={(e) => onDragOver(e, `${rung.id}_coils_drop`)}
-            onDragLeave={onDragLeave}
-            onDrop={(e) => handleDropOnCoilsLocal(e, rung.coils.length)}
-            className={`px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all ${
-              dragOverTarget === `${rung.id}_coils_drop`
-                ? 'border-emerald-400 bg-emerald-950/40 text-emerald-300'
-                : 'border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400'
-            }`}
-            title="Húzz ide további tekercset, időzítőt vagy könyvtár modult"
+          <DroppableZone
+            id={`${rung.id}_coils_drop`}
+            className="px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400"
           >
-            <Plus className="w-3 h-3" /> Kimenet
-          </div>
+            <div className="flex items-center gap-1 pointer-events-none" title="Húzz ide további tekercset, időzítőt vagy könyvtár modult">
+               <Plus className="w-3 h-3" /> Kimenet
+            </div>
+          </DroppableZone>
         </div>
 
         {/* Right Return to GND Rail */}
@@ -456,6 +457,35 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   const dragTargetRef = useRef<string | null>(null);
   const rafId = useRef<number | null>(null);
 
+  const [contextMenuInfo, setContextMenuInfo] = useState<{
+    x: number;
+    y: number;
+    element: LadderElement;
+  } | null>(null);
+
+  const handleContextMenuOpen = useCallback((e: React.MouseEvent, element: LadderElement) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Attempt to position within the relative parent.
+    // Use closest to find the scrollable container offset
+    const container = document.getElementById('ladder-canvas-container');
+    if(container) {
+       const rect = container.getBoundingClientRect();
+       setContextMenuInfo({
+         x: e.clientX - rect.left + container.scrollLeft,
+         y: e.clientY - rect.top + container.scrollTop,
+         element
+       });
+    } else {
+       setContextMenuInfo({
+         x: e.clientX,
+         y: e.clientY,
+         element
+       });
+    }
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -478,21 +508,48 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
     setDragOverTarget(null);
   }, []);
 
-  const validationErrors = useMemo(() => validateRungs(rungs), [rungs]);
+  const variables = useStore((state: any) => state.history.present.variables);
+  const constants = useStore((state: any) => state.history.present.constants);
+  const arrays = useStore((state: any) => state.history.present.arrays);
+
+  const validationErrors = useMemo(() => validateRungs(rungs, variables, constants, arrays), [rungs, variables, constants, arrays]);
 
   return (
-    <div className="flex-1 bg-slate-950 overflow-y-auto p-6 relative select-none">
-      {/* Background Subtle Grid Pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.04] pointer-events-none"
-        style={{
-          backgroundImage: `radial-gradient(#94a3b8 1px, transparent 1px)`,
-          backgroundSize: '24px 24px'
-        }}
-      />
+    <TransformWrapper
+      initialScale={1}
+      minScale={0.2}
+      maxScale={2}
+      wheel={{ step: 0.1 }}
+      panning={{ velocityDisabled: true }}
+      centerZoomedOut={false}
+      limitToBounds={false}
+    >
+      <div id="ladder-canvas-container" className="flex-1 bg-slate-950 overflow-hidden relative select-none h-full w-full">
 
-      <div className="max-w-5xl mx-auto relative z-10 pb-16">
-        {/* Top Power Rail Legend */}
+        {contextMenuInfo && (
+          <ContextMenu
+            x={contextMenuInfo.x}
+            y={contextMenuInfo.y}
+            element={contextMenuInfo.element}
+            onClose={() => setContextMenuInfo(null)}
+            onEdit={onSelectElement}
+            onDelete={onDeleteElement}
+            onTunePid={onTunePid}
+          />
+        )}
+
+        {/* Background Subtle Grid Pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.04] pointer-events-none"
+          style={{
+            backgroundImage: `radial-gradient(#94a3b8 1px, transparent 1px)`,
+            backgroundSize: '24px 24px'
+          }}
+        />
+
+        <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', minHeight: '100%', padding: '24px' }}>
+          <div className="max-w-5xl mx-auto relative z-10 pb-16 w-full">
+            {/* Top Power Rail Legend */}
         <div className="flex justify-between items-center px-4 mb-4 text-xs font-mono font-bold">
           <div className="flex items-center gap-2 text-rose-400">
             <span className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
@@ -557,23 +614,26 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                 onDeleteRung={onDeleteRung}
                 onTunePid={onTunePid}
                 totalRungsCount={rungs.length}
+                onContextMenuOpen={handleContextMenuOpen}
               />
             ))
         )}
         </div>
 
-        {/* Add New Rung Button */}
-        <div className="mt-6 flex justify-center">
-          <button
-            type="button"
-            onClick={onAddRung}
-            className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-sky-500 text-slate-200 hover:text-sky-300 font-semibold text-xs flex items-center gap-2 shadow-lg transition-all"
-          >
-            <Plus className="w-4 h-4 text-sky-400" />
-            Új Létrafok Hozzáadása (+ Rung)
-          </button>
-        </div>
+            {/* Add New Rung Button */}
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={onAddRung}
+                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-sky-500 text-slate-200 hover:text-sky-300 font-semibold text-xs flex items-center gap-2 shadow-lg transition-all"
+              >
+                <Plus className="w-4 h-4 text-sky-400" />
+                Új Létrafok Hozzáadása (+ Rung)
+              </button>
+            </div>
+          </div>
+        </TransformComponent>
       </div>
-    </div>
+    </TransformWrapper>
   );
 };

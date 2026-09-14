@@ -14,7 +14,10 @@ import {
   InterruptsConfig,
   ProjectData
 } from './types';
-import { useUndoRedo } from './utils/useUndoRedo';
+import { useStore } from './store/useStore';
+import { migrateProjectData } from './utils/schemaValidation';
+import { exportToPlcOpenXml } from './utils/plcOpenXmlUtils';
+import { Toaster, toast } from 'react-hot-toast';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
@@ -209,7 +212,23 @@ export default function App() {
   // Currently opened subroutine for ladder editing (null = main ladder)
   const [activeSubroutineId, setActiveSubroutineId] = useState<string | null>(null);
 
-  // Cache parsed initial state to avoid multiple localStorage parsing
+  const {
+    history,
+    simulationState,
+    setRungs,
+    setSetupRungs,
+    setSubroutines,
+    setSimulationState,
+    undo: undoLadder,
+    redo: redoLadder,
+    clearHistory: clearLadderHistory
+  } = useStore();
+
+  const { rungs, setupRungs, subroutines } = history.present;
+  const canUndoLadder = history.past.length > 0;
+  const canRedoLadder = history.future.length > 0;
+
+  // Cache parsed initial state to avoid multiple localStorage parsing (for non-store states)
   const initialSavedState = useMemo(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -221,86 +240,6 @@ export default function App() {
     }
     return null;
   }, []);
-
-  // Combined Ladder State for Undo/Redo
-  interface LadderState {
-    rungs: Rung[];
-    setupRungs: Rung[];
-    subroutines: Subroutine[];
-  }
-
-  const initialLadderState: LadderState = {
-    rungs: initialSavedState?.rungs?.length > 0 ? initialSavedState.rungs : EXAMPLE_PROJECTS[0].rungs,
-    setupRungs: (initialSavedState?.setupRungs && Array.isArray(initialSavedState.setupRungs))
-      ? initialSavedState.setupRungs
-      : (EXAMPLE_PROJECTS[0].setupRungs || [
-          {
-            id: 'rung_setup_boot_1',
-            number: 0,
-            comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le)',
-            branches: [
-              {
-                id: 'b_setup_boot_1',
-                elements: [
-                  {
-                    id: 'el_setup_boot_flag',
-                    type: 'NO_CONTACT',
-                    category: 'contact',
-                    name: 'SYS_BOOT',
-                    variable: 'V_AUTO_MODE',
-                    comment: 'Boot feltétel'
-                  }
-                ]
-              }
-            ],
-            coils: [
-              {
-                id: 'el_setup_lcd_hello',
-                type: 'MODULE_LCD_PRINT',
-                category: 'library_module',
-                name: 'LCD BOOT',
-                lcdText: 'ARDUINO PLC OK',
-                comment: 'Kezdő üzenet LCD-re'
-              }
-            ]
-          }
-        ]),
-    subroutines: initialSavedState?.subroutines?.length > 0 ? initialSavedState.subroutines : DEFAULT_SUBROUTINES
-  };
-
-  const {
-    state: ladderState,
-    set: setLadderState,
-    undo: undoLadder,
-    redo: redoLadder,
-    clear: clearLadderHistory,
-    canUndo: canUndoLadder,
-    canRedo: canRedoLadder
-  } = useUndoRedo<LadderState>(initialLadderState);
-
-  const { rungs, setupRungs, subroutines } = ladderState;
-
-  // Helpers to update individual parts of the combined state
-  const setRungs = (newRungs: Rung[] | ((prev: Rung[]) => Rung[])) => {
-    setLadderState((prev) => ({
-      ...prev,
-      rungs: typeof newRungs === 'function' ? newRungs(prev.rungs) : newRungs
-    }));
-  };
-
-  const setSetupRungs = (newSetupRungs: Rung[] | ((prev: Rung[]) => Rung[])) => {
-    setLadderState((prev) => ({
-      ...prev,
-      setupRungs: typeof newSetupRungs === 'function' ? newSetupRungs(prev.setupRungs) : newSetupRungs
-    }));
-  };
-
-  const setSubroutines = (newSubs: Subroutine[] | ((prev: Subroutine[]) => Subroutine[])) => {
-    setLadderState((prev) => ({
-      ...prev,
-      subroutines: typeof newSubs === 'function' ? newSubs(prev.subroutines) : newSubs
-    }));
-  };
 
   // Setup Keyboard Shortcuts for Undo/Redo
   useEffect(() => {
@@ -321,55 +260,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoLadder, redoLadder, canUndoLadder, canRedoLadder]);
 
-  // Custom Modules & Templates
+  // Destructure missing global states from the store
+  const { variables, constants, arrays, protocols, interrupts } = history.present;
+  const { setVariables, setConstants, setArrays, setProtocols, setInterrupts } = useStore();
+
+  // Custom Modules & Templates (Kept in local state for now, or move to store if needed)
   const [customModules, setCustomModules] = useState<CustomModuleTemplate[]>(() => {
     if (initialSavedState?.customModules?.length > 0) return initialSavedState.customModules;
     return DEFAULT_CUSTOM_MODULES;
   });
 
-  // Arduino Libraries
+  // Arduino Libraries (Kept in local state for now)
   const [libraries, setLibraries] = useState<ArduinoLibrary[]>(() => {
     if (initialSavedState?.libraries) return initialSavedState.libraries;
     return DEFAULT_LIBRARIES;
-  });
-
-  // PLC Constants (Read-only configuration thresholds)
-  const [constants, setConstants] = useState<PLCConstant[]>(() => {
-    if (initialSavedState?.constants?.length > 0) return initialSavedState.constants;
-    return DEFAULT_CONSTANTS;
-  });
-
-  // PLC Process Variables (Dynamic memory registers)
-  const [variables, setVariables] = useState<PLCVariable[]>(() => {
-    if (initialSavedState?.variables?.length > 0) return initialSavedState.variables;
-    return DEFAULT_VARIABLES;
-  });
-
-  // PLC Array Buffers
-  const [arrays, setArrays] = useState<PLCArray[]>(() => {
-    if (initialSavedState?.arrays?.length > 0) return initialSavedState.arrays;
-    return DEFAULT_ARRAYS;
-  });
-
-  // Industrial Communication Protocols Configuration
-  const [protocols, setProtocols] = useState<ProtocolConfigs>(() => {
-    if (initialSavedState?.protocols) {
-      return {
-        ...DEFAULT_PROTOCOLS,
-        ...initialSavedState.protocols,
-        rtc: initialSavedState.protocols.rtc || DEFAULT_PROTOCOLS.rtc,
-        sdCard: initialSavedState.protocols.sdCard || DEFAULT_PROTOCOLS.sdCard,
-        modbus: initialSavedState.protocols.modbus || DEFAULT_PROTOCOLS.modbus,
-        supervisor: initialSavedState.protocols.supervisor || DEFAULT_PROTOCOLS.supervisor
-      };
-    }
-    return DEFAULT_PROTOCOLS;
-  });
-
-  // Hardware and Timer Interrupts Configuration
-  const [interrupts, setInterrupts] = useState<InterruptsConfig>(() => {
-    if (initialSavedState?.interrupts) return initialSavedState.interrupts;
-    return DEFAULT_INTERRUPTS;
   });
 
   // Project Save & Load Modal
@@ -383,9 +287,6 @@ export default function App() {
   const [selectedElement, setSelectedElement] = useState<LadderElement | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
-
-  // Simulation State
-  const [simulationState, setSimulationState] = useState<SimulationState>(INITIAL_SIMULATION_STATE);
 
   // Calculated Real-Time Hardware Pin Conflicts Count
   const pinConflictsCount = useMemo(() => {
@@ -716,10 +617,9 @@ export default function App() {
         {
           id: `eeprom_manual_${Date.now()}`,
           timestamp: ts,
-          operation: 'WRITE',
-          deviceAddress: protocols.eeprom24c?.i2cAddress || '0x50',
-          memoryAddress: address,
-          dataType: 'float',
+          op: 'WRITE',
+          addressHex: protocols.eeprom24c?.addressHex || '0x50',
+          dataType: 'FLOAT',
           value,
           status: 'SUCCESS'
         },
@@ -940,29 +840,63 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPlcOpenXml = () => {
+    const data = {
+      version: '3.1',
+      name: 'Arduino_PLC_Project',
+      rungs,
+      setupRungs,
+      subroutines,
+      customModules,
+      libraries,
+      constants,
+      variables,
+      arrays,
+      protocols,
+      interrupts
+    };
+    try {
+      const xmlString = exportToPlcOpenXml(data);
+      const blob = new Blob([xmlString], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Arduino_PLC_Project_${Date.now()}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('XML Export Error:', err);
+      toast.error('Hiba történt az XML exportálás során.');
+    }
+  };
+
   const handleImportProject = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
+        const migrated = migrateProjectData(parsed);
+
         clearLadderHistory({
-          rungs: parsed.rungs || [],
-          setupRungs: parsed.setupRungs || [],
-          subroutines: parsed.subroutines || []
+          rungs: migrated.rungs,
+          setupRungs: migrated.setupRungs,
+          subroutines: migrated.subroutines,
+          variables: migrated.variables,
+          constants: migrated.constants,
+          arrays: migrated.arrays,
+          protocols: migrated.protocols,
+          interrupts: migrated.interrupts
         });
-        if (parsed.customModules) setCustomModules(parsed.customModules);
-        if (parsed.libraries) setLibraries(parsed.libraries);
-        if (parsed.constants) setConstants(parsed.constants);
-        if (parsed.variables) setVariables(parsed.variables);
-        if (parsed.arrays) setArrays(parsed.arrays);
-        if (parsed.protocols) setProtocols(parsed.protocols);
-        if (parsed.interrupts) setInterrupts(parsed.interrupts);
+        if (migrated.customModules) setCustomModules(migrated.customModules);
+        if (migrated.libraries) setLibraries(migrated.libraries);
+
         setSelectedRungIndex(0);
         setActiveSubroutineId(null);
         setActivePage('editor');
       } catch (err) {
         console.error('Projekt importálási hiba:', err);
+        toast.error(err instanceof Error ? err.message : 'Hibás vagy sérült projekt fájl!');
       }
     };
     reader.readAsText(file);
@@ -986,34 +920,42 @@ export default function App() {
   };
 
   const handleLoadProject = (project: ProjectData) => {
-    clearLadderHistory({
-      rungs: project.rungs || [],
-      setupRungs: project.setupRungs || [],
-      subroutines: project.subroutines || []
-    });
-    if (project.customModules) setCustomModules(project.customModules);
-    if (project.libraries) setLibraries(project.libraries);
-    if (project.constants) setConstants(project.constants);
-    if (project.variables) {
-      setVariables(project.variables);
-      const varMap: Record<string, number | boolean | string> = {};
-      project.variables.forEach((v) => {
-        varMap[v.name] = v.initialValue;
+    try {
+      const migrated = migrateProjectData(project);
+      clearLadderHistory({
+        rungs: migrated.rungs,
+        setupRungs: migrated.setupRungs,
+        subroutines: migrated.subroutines,
+        variables: migrated.variables,
+        constants: migrated.constants,
+        arrays: migrated.arrays,
+        protocols: migrated.protocols,
+        interrupts: migrated.interrupts
       });
-      setSimulationState((prev) => ({ ...prev, variableValues: { ...prev.variableValues, ...varMap } }));
+      if (migrated.customModules) setCustomModules(migrated.customModules);
+      if (migrated.libraries) setLibraries(migrated.libraries);
+
+      if (migrated.variables) {
+        const varMap: Record<string, number | boolean | string> = {};
+        migrated.variables.forEach((v) => {
+          varMap[v.name] = v.initialValue;
+        });
+        setSimulationState((prev) => ({ ...prev, variableValues: { ...prev.variableValues, ...varMap } }));
+      }
+      if (migrated.arrays) {
+        const arrMap: Record<string, (number | boolean | string)[]> = {};
+        migrated.arrays.forEach((a) => {
+          arrMap[a.name] = [...a.values];
+        });
+        setSimulationState((prev) => ({ ...prev, arrayValues: { ...prev.arrayValues, ...arrMap } }));
+      }
+
+      setSelectedRungIndex(0);
+      setActiveSubroutineId(null);
+    } catch (err) {
+      console.error('Projekt betöltési hiba:', err);
+      toast.error(err instanceof Error ? err.message : 'Hibás vagy sérült projekt adatok!');
     }
-    if (project.arrays) {
-      setArrays(project.arrays);
-      const arrMap: Record<string, (number | boolean | string)[]> = {};
-      project.arrays.forEach((a) => {
-        arrMap[a.name] = [...a.values];
-      });
-      setSimulationState((prev) => ({ ...prev, arrayValues: { ...prev.arrayValues, ...arrMap } }));
-    }
-    if (project.protocols) setProtocols(project.protocols);
-    if (project.interrupts) setInterrupts(project.interrupts);
-    setSelectedRungIndex(0);
-    setActiveSubroutineId(null);
   };
 
   const handleResetProject = () => {
@@ -1071,7 +1013,7 @@ export default function App() {
             coils: [
               {
                 id: 'el_boot_lcd',
-                type: 'MODULE_LCD_PRINT',
+                type: 'LCD_PRINT',
                 category: 'library_module',
                 name: 'LCD BOOT',
                 lcdText: 'PLC BOOT READY'
@@ -1108,6 +1050,14 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      <Toaster position="top-center" toastOptions={{
+        duration: 4000,
+        style: {
+          background: '#1e293b',
+          color: '#f8fafc',
+          border: '1px solid #334155'
+        }
+      }} />
       {/* Global Navigation Bar */}
       <Navbar
         activePage={activePage}
@@ -1117,6 +1067,7 @@ export default function App() {
         onOpenCodeViewer={() => setActivePage('code')}
         onLoadExample={handleLoadExample}
         onExportProject={handleExportProject}
+        onExportPlcOpenXml={handleExportPlcOpenXml}
         onImportProject={handleImportProject}
         onResetProject={handleResetProject}
         onOpenSaveLoadModal={() => setIsSaveLoadModalOpen(true)}

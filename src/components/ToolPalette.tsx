@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { ElementType, ElementCategory, LadderElement, CustomModuleTemplate, Subroutine } from '../types';
 import { Radio, Zap, Clock, Cpu, Plus, HelpCircle, Layers, Sliders, Box, Network, Variable, Calendar } from 'lucide-react';
+import { useDraggable } from '@dnd-kit/core';
+
+// Helper component for draggables
+const DraggableItem = ({ id, data, children, className, onClick }: any) => {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+    data,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      onClick={onClick}
+      className={`${className} ${isDragging ? 'opacity-50' : ''}`}
+    >
+      {children}
+    </div>
+  );
+};
 
 interface ToolPaletteProps {
   onAddElement: (template: Partial<LadderElement>) => void;
@@ -136,12 +157,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
     };
   };
 
-  const handleDragStartModule = (e: React.DragEvent, item: CustomModuleTemplate) => {
-    const elementData = buildElementData(item);
-    e.dataTransfer.setData('application/json', JSON.stringify(elementData));
-  };
-
-  const handleDragStartSubroutine = (e: React.DragEvent, sub: Subroutine) => {
+  const buildSubroutineData = (sub: Subroutine): Partial<LadderElement> => {
     const defaultBindings: Record<string, string> = {};
     sub.inputs.forEach((p) => {
       defaultBindings[p.name] = p.defaultPinOrVar || 'D2';
@@ -150,7 +166,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
       defaultBindings[p.name] = p.defaultPinOrVar || 'D8';
     });
 
-    const elementData: Partial<LadderElement> = {
+    return {
       type: 'SUBROUTINE_CALL',
       category: 'subroutine',
       name: sub.name,
@@ -158,7 +174,6 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
       subroutineBindings: defaultBindings,
       comment: sub.codeIdentifier
     };
-    e.dataTransfer.setData('application/json', JSON.stringify(elementData));
   };
 
   const handleAddSubroutineDirect = (sub: Subroutine) => {
@@ -306,14 +321,14 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
 
             <div className="space-y-2">
               {filteredSubroutines.map((sub) => (
-                <div
+                <DraggableItem
                   key={sub.id}
-                  draggable
-                  onDragStart={(e) => handleDragStartSubroutine(e, sub)}
+                  id={`subroutine_${sub.id}`}
+                  data={buildSubroutineData(sub)}
                   onClick={() => handleAddSubroutineDirect(sub)}
                   className="group p-2.5 bg-indigo-950/30 hover:bg-indigo-950/60 border border-indigo-800/60 hover:border-indigo-400 rounded-xl transition-all cursor-grab active:cursor-grabbing relative"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-indigo-300 text-xs px-2 py-0.5 rounded bg-indigo-900/80 border border-indigo-700 shrink-0">
                         FC
@@ -336,7 +351,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
                     {sub.description}
                   </p>
 
-                  <div className="mt-2 pt-1.5 border-t border-indigo-900/60 flex items-center justify-between text-[10px] font-mono">
+                  <div className="mt-2 pt-1.5 border-t border-indigo-900/60 flex items-center justify-between text-[10px] font-mono pointer-events-none">
                     <span className="text-emerald-400">
                       Be: {sub.inputs.map((i) => i.name).join(', ') || 'Nincs'}
                     </span>
@@ -344,7 +359,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
                       Ki: {sub.outputs.map((o) => o.name).join(', ') || 'Nincs'}
                     </span>
                   </div>
-                </div>
+                </DraggableItem>
               ))}
             </div>
           </div>
@@ -352,10 +367,10 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
 
         {/* Regular Modules Section */}
         {filteredModules.map((item) => (
-          <div
+          <DraggableItem
             key={item.id}
-            draggable
-            onDragStart={(e) => handleDragStartModule(e, item)}
+            id={`module_${item.id}`}
+            data={buildElementData(item)}
             onClick={() => onAddElement(buildElementData(item))}
             className={`group p-2.5 rounded-xl transition-all cursor-grab active:cursor-grabbing relative border ${
               item.category === 'protocol'
@@ -367,7 +382,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
                 : 'bg-slate-950/70 hover:bg-slate-800 border-slate-800/90 hover:border-sky-500/60'
             }`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pointer-events-none">
               <div className="flex items-center gap-2">
                 <span className={`font-mono font-bold text-xs px-2 py-0.5 rounded border shrink-0 ${
                   item.category === 'protocol'
@@ -397,14 +412,14 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
             </p>
 
             {item.libraryName && (
-              <div className="mt-2 flex items-center gap-1 text-[10px] font-mono text-cyan-400">
+              <div className="mt-2 flex items-center gap-1 text-[10px] font-mono text-cyan-400 pointer-events-none">
                 <Cpu className="w-3 h-3" />
                 <span className="bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/60">
                   Lib: {item.libraryName}
                 </span>
               </div>
             )}
-          </div>
+          </DraggableItem>
         ))}
 
         {filteredModules.length === 0 && filteredSubroutines.length === 0 && (
