@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, MouseEvent } from 'react';
 import { FBDBlock, FBDConnection, FBDDiagram, PLCVariable } from '../../types';
+import { renderVariableOptions } from '../ElementInspectorModal';
 
 interface FBDCanvasProps {
   fbd?: FBDDiagram;
@@ -306,9 +307,7 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpd
               className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
             />
             <datalist id="fbd-variables">
-              {variables.map(v => (
-                <option key={v.id} value={v.name}>{v.name} ({v.address})</option>
-              ))}
+              {renderVariableOptions(variables, true)}
             </datalist>
           </div>
         </div>

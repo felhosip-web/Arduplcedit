@@ -45,6 +45,32 @@ const EXPANDER_MCP_A_PINS = ['EXP_A0', 'EXP_A1', 'EXP_A2', 'EXP_A3', 'EXP_A4', '
 const EXPANDER_MCP_B_PINS = ['EXP_B0', 'EXP_B1', 'EXP_B2', 'EXP_B3', 'EXP_B4', 'EXP_B5', 'EXP_B6', 'EXP_B7'];
 const EXPANDER_PCF_PINS = ['PCF_P0', 'PCF_P1', 'PCF_P2', 'PCF_P3', 'PCF_P4', 'PCF_P5', 'PCF_P6', 'PCF_P7'];
 
+export const renderVariableOptions = (variables: PLCVariable[], includeSystem: boolean = false) => {
+  const normalVars = variables.filter(v => !v.isSystem);
+  const systemVars = variables.filter(v => v.isSystem);
+
+  return (
+    <>
+      <optgroup label="Felhasználói Változók">
+        {normalVars.map((v) => (
+          <option key={v.id} value={v.name}>
+            {v.name} ({v.type})
+          </option>
+        ))}
+      </optgroup>
+      {includeSystem && systemVars.length > 0 && (
+        <optgroup label="Rendszer (SM)">
+          {systemVars.map((v) => (
+            <option key={v.id} value={v.name}>
+              {v.name} ({v.type})
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+};
+
 export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
   element,
   isOpen,
@@ -359,11 +385,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono"
                   >
                     <option value="">-- Válassz változót --</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                 </div>
 
@@ -456,11 +478,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     }
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-amber-300 font-mono"
                   >
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                     {arrays.map((a) => (
                       <option key={a.id} value={`${a.name}[0]`}>
                         {a.name}[0]
@@ -616,11 +634,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                         }
                         className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 font-mono text-xs text-emerald-300"
                       >
-                        {variables.map((v) => (
-                          <option key={v.id} value={v.name}>
-                            {v.name}
-                          </option>
-                        ))}
+                        {renderVariableOptions(variables, true)}
                       </select>
                     </>
                   )}
@@ -696,11 +710,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 font-mono text-xs text-emerald-300"
                   >
                     <option value="">(Nem ment)</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name}
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                 </div>
               </div>
@@ -734,11 +744,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-slate-200"
                   >
                     <option value="">-- Nincs változó hozzárendelve --</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                 </div>
                 <div>
@@ -817,11 +823,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                         className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-slate-200"
                       >
                         <option value="">-- Statikus szöveges üzenet használata --</option>
-                        {variables.map((v) => (
-                          <option key={v.id} value={v.name}>
-                            {v.name} ({v.type})
-                          </option>
-                        ))}
+                        {renderVariableOptions(variables, true)}
                       </select>
                     </div>
                     <div>
@@ -849,11 +851,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                         className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-emerald-300"
                       >
                         <option value="">-- Válassz célváltozót --</option>
-                        {variables.map((v) => (
-                          <option key={v.id} value={v.name}>
-                            {v.name} ({v.type})
-                          </option>
-                        ))}
+                        {renderVariableOptions(variables, true)}
                       </select>
                     </div>
                     <div>
@@ -943,11 +941,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                         className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-amber-300"
                       >
                         <option value="">-- Statikus érték megadása --</option>
-                        {variables.map((v) => (
-                          <option key={v.id} value={v.name}>
-                            {v.name} ({v.type} = {String(v.initialValue)})
-                          </option>
-                        ))}
+                        {renderVariableOptions(variables, true)}
                       </select>
                     </div>
                     <div>
@@ -973,11 +967,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-emerald-300"
                   >
                     <option value="">-- Válassz célváltozót --</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                 </div>
               )}
@@ -1052,11 +1042,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-amber-300"
                   >
                     <option value="">-- Automatikus belső mutató --</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                   <p className="text-[10px] text-slate-400 mt-0.5">
                     Követi a pufferben lévő elemek számát.
@@ -1091,11 +1077,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-emerald-300"
                     >
                       <option value="">-- Statikus konstans használata --</option>
-                      {variables.map((v) => (
-                        <option key={v.id} value={v.name}>
-                          {v.name} ({v.type})
-                        </option>
-                      ))}
+                      {renderVariableOptions(variables, true)}
                     </select>
                   </div>
                   <div>
@@ -1121,11 +1103,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 font-mono text-xs text-emerald-300"
                   >
                     <option value="">-- Válassz célváltozót --</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                   <p className="text-[10px] text-slate-400 mt-1">
                     {formData.type === 'FIFO_POP'
@@ -1470,11 +1448,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono"
                   >
                     <option value="">-- Válassz PLC változót --</option>
-                    {variables.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name} ({v.type})
-                      </option>
-                    ))}
+                    {renderVariableOptions(variables, true)}
                   </select>
                 </div>
               )}
