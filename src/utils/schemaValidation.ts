@@ -188,6 +188,45 @@ export const PLCArraySchema = z.object({
   description: z.string().optional(),
 });
 
+
+export const FBDBlockSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  x: z.number(),
+  y: z.number(),
+  properties: z.record(z.string(), z.any()).optional(),
+});
+
+export const FBDConnectionSchema = z.object({
+  id: z.string(),
+  sourceBlockId: z.string(),
+  sourcePin: z.string(),
+  targetBlockId: z.string(),
+  targetPin: z.string(),
+});
+
+export const FBDDiagramSchema = z.object({
+  blocks: z.array(FBDBlockSchema),
+  connections: z.array(FBDConnectionSchema),
+});
+
+export const ProgramSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['ladder', 'fbd']),
+  rungs: z.array(RungSchema).optional(),
+  fbd: FBDDiagramSchema.optional(),
+});
+
+export const TaskSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['cyclic', 'continuous']),
+  intervalMs: z.number().optional(),
+  priority: z.number(),
+  programs: z.array(ProgramSchema),
+});
+
 export const ProjectDataSchema = z.object({
   version: z.string(),
   name: z.string().optional(),
@@ -202,6 +241,7 @@ export const ProjectDataSchema = z.object({
   arrays: z.array(PLCArraySchema).optional(),
   protocols: z.any().optional(), // Can be fully typed later if needed
   interrupts: z.any().optional(),
+  tasks: z.array(TaskSchema).optional(),
 }).passthrough();
 
 export function migrateProjectData(data: any): ProjectData {
@@ -221,6 +261,23 @@ export function migrateProjectData(data: any): ProjectData {
   if (!project.constants) project.constants = [];
   if (!project.arrays) project.arrays = [];
   if (!project.version) project.version = '3.1.0';
+
+  // Migration for tasks
+  if (!project.tasks || project.tasks.length === 0) {
+    project.tasks = [{
+      id: 'task_main',
+      name: 'Main Task',
+      type: 'cyclic',
+      intervalMs: 10,
+      priority: 1,
+      programs: [{
+        id: 'prog_main',
+        name: 'Main Program',
+        type: 'ladder',
+        rungs: project.rungs || []
+      }]
+    }];
+  }
 
   return project as ProjectData;
 }
