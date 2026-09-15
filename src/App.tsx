@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   Rung,
   LadderElement,
+  Task,
+  Program,
   ArduinoLibrary,
   SimulationState,
   ActivePage,
@@ -221,12 +223,52 @@ export default function App() {
     setSimulationState,
     undo: undoLadder,
     redo: redoLadder,
-    clearHistory: clearLadderHistory
+    clearHistory: clearLadderHistory,
+    activeProgramId,
+    setTasks
   } = useStore();
 
-  const { rungs, setupRungs, subroutines } = history.present;
+  const { rungs, setupRungs, subroutines, tasks } = history.present;
   const canUndoLadder = history.past.length > 0;
   const canRedoLadder = history.future.length > 0;
+
+  // Resolve the active program from tasks
+  const activeTask = useMemo(() => {
+    if (!tasks || !activeProgramId) return null;
+    return tasks.find(t => t.programs.some(p => p.id === activeProgramId)) || null;
+  }, [tasks, activeProgramId]);
+
+  const activeProgram = useMemo(() => {
+    if (!activeTask || !activeProgramId) return null;
+    return activeTask.programs.find(p => p.id === activeProgramId) || null;
+  }, [activeTask, activeProgramId]);
+
+  // When editing ladder, decide whether to use the active program's rungs or the top-level (global) rungs
+  const effectiveMainRungs = activeProgram?.type === 'ladder' && activeProgram.rungs
+    ? activeProgram.rungs
+    : rungs;
+
+  const handleUpdateEffectiveMainRungs = useCallback((newRungs: Rung[]) => {
+    if (activeProgram?.type === 'ladder' && tasks) {
+      const newTasks = tasks.map(task => {
+        if (task.id === activeTask?.id) {
+          return {
+            ...task,
+            programs: task.programs.map(prog => {
+              if (prog.id === activeProgram.id) {
+                return { ...prog, rungs: newRungs };
+              }
+              return prog;
+            })
+          };
+        }
+        return task;
+      });
+      setTasks(newTasks);
+    } else {
+      setRungs(newRungs);
+    }
+  }, [activeProgram, tasks, activeTask, setTasks, setRungs]);
 
   // Cache parsed initial state to avoid multiple localStorage parsing (for non-store states)
   const initialSavedState = useMemo(() => {
@@ -1082,8 +1124,10 @@ export default function App() {
       {/* 4 Main Pages */}
       {activePage === 'editor' && (
         <EditorView
-          mainRungs={rungs}
-          onUpdateMainRungs={setRungs}
+          mainRungs={effectiveMainRungs}
+          onUpdateMainRungs={handleUpdateEffectiveMainRungs}
+          activeProgram={activeProgram || undefined}
+          activeTaskName={activeTask?.name}
           setupRungs={setupRungs}
           onUpdateSetupRungs={setSetupRungs}
           subroutines={subroutines}
