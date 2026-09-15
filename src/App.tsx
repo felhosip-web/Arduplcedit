@@ -225,12 +225,25 @@ export default function App() {
     redo: redoLadder,
     clearHistory: clearLadderHistory,
     activeProgramId,
-    setTasks
+    setTasks,
+    setActiveProgramId
   } = useStore();
 
   const { rungs, setupRungs, subroutines, tasks } = history.present;
   const canUndoLadder = history.past.length > 0;
   const canRedoLadder = history.future.length > 0;
+
+  // Auto-select first ladder program if tasks exist but activeProgramId is unset
+  useEffect(() => {
+    if (tasks && tasks.length > 0 && !activeProgramId) {
+      const firstLadderProg = tasks
+        .flatMap(t => t.programs)
+        .find(p => p.type === 'ladder');
+      if (firstLadderProg) {
+        setActiveProgramId(firstLadderProg.id);
+      }
+    }
+  }, [tasks, activeProgramId, setActiveProgramId]);
 
   // Resolve the active program from tasks
   const activeTask = useMemo(() => {
@@ -242,6 +255,22 @@ export default function App() {
     if (!activeTask || !activeProgramId) return null;
     return activeTask.programs.find(p => p.id === activeProgramId) || null;
   }, [activeTask, activeProgramId]);
+
+  // Resolve simulation rungs: all ladder rungs from cyclic tasks, else fallback to global rungs
+  const simulationRungs = useMemo(() => {
+    if (tasks && tasks.length > 0) {
+      const cyclicLadderRungs = tasks
+        .filter(t => t.type === 'cyclic')
+        .flatMap(t => t.programs)
+        .filter(p => p.type === 'ladder' && p.rungs)
+        .flatMap(p => p.rungs!);
+
+      if (cyclicLadderRungs.length > 0) {
+        return cyclicLadderRungs;
+      }
+    }
+    return rungs;
+  }, [tasks, rungs]);
 
   // When editing ladder, decide whether to use the active program's rungs or the top-level (global) rungs
   const effectiveMainRungs = activeProgram?.type === 'ladder' && activeProgram.rungs
@@ -364,11 +393,11 @@ export default function App() {
       const delta = Math.min(100, now - lastTimeRef.current);
       lastTimeRef.current = now;
 
-      setSimulationState((prev) => runSimulationStep(rungs, prev, delta, subroutines, setupRungs, interrupts, protocols));
+      setSimulationState((prev) => runSimulationStep(simulationRungs, prev, delta, subroutines, setupRungs, interrupts, protocols));
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationState.isRunning, rungs, subroutines, setupRungs, interrupts, protocols]);
+  }, [simulationState.isRunning, simulationRungs, subroutines, setupRungs, interrupts, protocols]);
 
   // Toggle Simulation Run / Stop
   const handleToggleSimulation = () => {
@@ -412,8 +441,8 @@ export default function App() {
 
   // Single step simulation scan
   const handleStepSimulation = useCallback(() => {
-    setSimulationState((prev) => runSimulationStep(rungs, prev, 20, subroutines, setupRungs, interrupts, protocols));
-  }, [rungs, subroutines, setupRungs, interrupts, protocols]);
+    setSimulationState((prev) => runSimulationStep(simulationRungs, prev, 20, subroutines, setupRungs, interrupts, protocols));
+  }, [simulationRungs, subroutines, setupRungs, interrupts, protocols]);
 
   // Digital and Analog input controls
   const handleToggleDigitalInput = (pin: string) => {
@@ -1087,7 +1116,8 @@ export default function App() {
     arrays,
     protocols,
     setupRungs,
-    interrupts
+    interrupts,
+    tasks
   );
 
   return (
