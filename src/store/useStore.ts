@@ -222,16 +222,11 @@ export const useStore = create<AppState>((set, get) => ({
   })),
 
   // Internal helper to push a new state to history
-  setTasks: (tasks: Task[]) => set((state) => {
+  setTasks: (tasks: Task[]) => {
+    const state = get();
     const newPresent = { ...state.history.present, tasks };
-    return {
-      history: {
-        past: [...state.history.past, state.history.present],
-        present: newPresent,
-        future: [],
-      }
-    };
-  }),
+    get()._updatePresent(newPresent);
+  },
   setActiveProgramId: (id) => set({ activeProgramId: id }),
 
   _updatePresent: (newPresent: LadderState) => set((state) => {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Rung, LadderElement, SimulationState, CustomModuleTemplate, Subroutine } from '../types';
+import { Rung, LadderElement, SimulationState, CustomModuleTemplate, Subroutine, Program } from '../types';
 import { ToolPalette } from '../components/ToolPalette';
 import { LadderCanvas } from '../components/LadderCanvas';
 import { DndContext, DragEndEvent, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 
 interface EditorViewProps {
+  activeProgram?: Program;
+  activeTaskName?: string;
   // Main loop ladder
   mainRungs: Rung[];
   onUpdateMainRungs: (rungs: Rung[]) => void;
@@ -48,6 +50,8 @@ interface EditorViewProps {
 }
 
 export const EditorView: React.FC<EditorViewProps> = ({
+  activeProgram,
+  activeTaskName,
   mainRungs,
   onUpdateMainRungs,
   setupRungs,
@@ -495,15 +499,30 @@ export const EditorView: React.FC<EditorViewProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-sky-300">
-                  🔄 loop() Ciklikus Szakasz (Folyamatos PLC Scan — {mainRungs.length} fok)
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-900/60 text-sky-200 border border-sky-800 font-bold">
-                  50 Hz / 20 ms
-                </span>
+                {activeProgram ? (
+                  <>
+                    <span className="text-xs font-bold text-sky-300">
+                      🔄 Task: {activeTaskName} | Program: {activeProgram.name} — {mainRungs.length} fok
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-900/60 text-sky-200 border border-sky-800 font-bold ml-2">
+                      {activeProgram.type.toUpperCase()}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs font-bold text-sky-300">
+                      🔄 loop() Ciklikus Szakasz (Folyamatos PLC Scan — {mainRungs.length} fok)
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-900/60 text-sky-200 border border-sky-800 font-bold ml-2">
+                      50 Hz / 20 ms
+                    </span>
+                  </>
+                )}
               </div>
               <p className="text-[11px] text-slate-400">
-                Folyamatos PLC programciklus: digitális & analóg bemenetek beolvasása ➔ létrakiértékelés ➔ kimenetek és regiszterek frissítése.
+                {activeProgram
+                  ? `Szerkesztés alatt: ${activeProgram.name} (${activeProgram.type})`
+                  : 'Folyamatos PLC programciklus: digitális & analóg bemenetek beolvasása ➔ létrakiértékelés ➔ kimenetek és regiszterek frissítése.'}
               </p>
             </div>
           </div>
@@ -519,49 +538,64 @@ export const EditorView: React.FC<EditorViewProps> = ({
         </div>
       )}
 
-      {/* Main Workspace: Left ToolPalette, Right LadderCanvas */}
-      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[snapCenterToCursor]}>
-        <div className="flex-1 flex overflow-hidden">
-          <ToolPalette
-            onAddElement={handleAddElement}
-            selectedRungIndex={selectedRungIndex}
-            customModules={customModules}
-            subroutines={subroutines}
-            onOpenManagement={onOpenManagement}
-          />
-
-          <LadderCanvas
-            rungs={activeRungs}
-            simulationState={simulationState}
-            selectedRungIndex={selectedRungIndex}
-            isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
-            onSelectRung={onSelectRung}
-            onSelectElement={onSelectElement}
-            onDeleteElement={handleDeleteElement}
-            onAddRung={handleAddRung}
-            onDeleteRung={handleDeleteRung}
-            onDuplicateRung={handleDuplicateRung}
-            onMoveRung={handleMoveRung}
-            onUpdateRungComment={handleUpdateRungComment}
-            onAddParallelBranch={handleAddParallelBranch}
-            onDeleteParallelBranch={handleDeleteParallelBranch}
-            onDropElementOnBranch={handleDropElementOnBranch}
-            onDropElementOnCoils={handleDropElementOnCoils}
-          />
-        </div>
-
-        <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
-          {activeDragElement ? (
-            <div className="opacity-80 scale-105 transform origin-center pointer-events-none z-[9999]">
-              <ElementBlock
-                element={activeDragElement as LadderElement}
-                onSelect={() => {}}
-                onDelete={() => {}}
-              />
+      {/* Main Workspace: Left ToolPalette, Right LadderCanvas (or FBD Placeholder) */}
+      {activeProgram?.type === 'fbd' ? (
+        <div className="flex-1 flex items-center justify-center bg-slate-900 border-t border-slate-800">
+          <div className="text-center p-8 bg-slate-800 rounded-lg shadow-xl border border-slate-700 max-w-md">
+            <div className="mx-auto w-16 h-16 bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+              <FileCode className="w-8 h-8 text-blue-400" />
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+            <h3 className="text-xl font-bold text-white mb-2">FBD Editor Coming Soon</h3>
+            <p className="text-slate-400 text-sm">
+              The Function Block Diagram (FBD) editor is currently under development.
+              Please switch to a Ladder program in the Task Manager to continue editing logic.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[snapCenterToCursor]}>
+          <div className="flex-1 flex overflow-hidden">
+            <ToolPalette
+              onAddElement={handleAddElement}
+              selectedRungIndex={selectedRungIndex}
+              customModules={customModules}
+              subroutines={subroutines}
+              onOpenManagement={onOpenManagement}
+            />
+
+            <LadderCanvas
+              rungs={activeRungs}
+              simulationState={simulationState}
+              selectedRungIndex={selectedRungIndex}
+              isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
+              onSelectRung={onSelectRung}
+              onSelectElement={onSelectElement}
+              onDeleteElement={handleDeleteElement}
+              onAddRung={handleAddRung}
+              onDeleteRung={handleDeleteRung}
+              onDuplicateRung={handleDuplicateRung}
+              onMoveRung={handleMoveRung}
+              onUpdateRungComment={handleUpdateRungComment}
+              onAddParallelBranch={handleAddParallelBranch}
+              onDeleteParallelBranch={handleDeleteParallelBranch}
+              onDropElementOnBranch={handleDropElementOnBranch}
+              onDropElementOnCoils={handleDropElementOnCoils}
+            />
+          </div>
+
+          <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
+            {activeDragElement ? (
+              <div className="opacity-80 scale-105 transform origin-center pointer-events-none z-[9999]">
+                <ElementBlock
+                  element={activeDragElement as LadderElement}
+                  onSelect={() => {}}
+                  onDelete={() => {}}
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
     </div>
   );
 };
