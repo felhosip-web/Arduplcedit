@@ -91,6 +91,18 @@ export function runSimulationStep(
   const currentInputs = prevState.digitalInputs;
   let timer1AccumMs = ((prevState as unknown as { _timer1AccumMs?: number })._timer1AccumMs || 0) + deltaTimeMs;
 
+  // System Bits Accumulator
+  let sysAccumMs = ((prevState as unknown as { _sysAccumMs?: number })._sysAccumMs || 0) + deltaTimeMs;
+  const isFirstScan = !(prevState as unknown as { _sysStarted?: boolean })._sysStarted;
+
+  // Evaluate System Bits
+  if (sysAccumMs >= 1000) sysAccumMs = sysAccumMs % 1000;
+  nextVariableValues["SM_ALWAYS_ON"] = true;
+  nextVariableValues["SM_ALWAYS_OFF"] = false;
+  nextVariableValues["SM_FIRST_SCAN"] = isFirstScan;
+  nextVariableValues["SM_1HZ"] = sysAccumMs >= 500;
+  nextVariableValues["SM_100MS"] = (sysAccumMs % 100) >= 50;
+
   // RTC Hardware simulation time advancement
   let rtcAccumMs = ((prevState as unknown as { _rtcAccumMs?: number })._rtcAccumMs || 0) + deltaTimeMs;
   let nextRtcTime = prevState.rtcTime ? { ...prevState.rtcTime } : {
@@ -1576,6 +1588,7 @@ export function runSimulationStep(
 
   return {
     ...prevState,
+    ...( { _sysAccumMs: sysAccumMs, _sysStarted: true } as any ),
     digitalOutputs: nextDigitalOutputs,
     internalFlags: nextInternalFlags,
     timerStates: nextTimerStates,

@@ -23,7 +23,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
-import { DEFAULT_CONSTANTS, DEFAULT_VARIABLES, DEFAULT_ARRAYS } from './data/defaultVariables';
+import { DEFAULT_CONSTANTS, DEFAULT_VARIABLES, DEFAULT_ARRAYS } from "./data/defaultVariables";
+import { SYSTEM_VARIABLES } from './data/systemVariables';
 import { DEFAULT_PROTOCOLS } from './data/defaultProtocols';
 import { DEFAULT_INTERRUPTS } from './data/defaultInterrupts';
 import { DEFAULT_MACROS } from './data/defaultMacros';
@@ -617,7 +618,7 @@ export default function App() {
   };
   const handleUpdateVariable = (v: PLCVariable) =>
     setVariables((prev) => prev.map((item) => (item.id === v.id ? v : item)));
-  const handleDeleteVariable = (id: string) => setVariables((prev) => prev.filter((item) => item.id !== id));
+  const handleDeleteVariable = (id: string) => setVariables((prev) => prev.filter((item) => item.id !== id && !item.isSystem));
 
   const handleAddArray = (a: PLCArray) => {
     setArrays((prev) => [...prev, a]);
@@ -1115,7 +1116,7 @@ export default function App() {
         subroutines: []
       });
       setConstants(DEFAULT_CONSTANTS);
-      setVariables(DEFAULT_VARIABLES);
+      setVariables([...SYSTEM_VARIABLES, ...DEFAULT_VARIABLES]);
       setArrays(DEFAULT_ARRAYS);
       setProtocols(DEFAULT_PROTOCOLS);
       setInterrupts(DEFAULT_INTERRUPTS);

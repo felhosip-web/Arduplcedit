@@ -1656,6 +1656,10 @@ export function generateArduinoCode(
     }
   }
 
+  lines.push('// System Bits state variables');
+  lines.push('static bool _sys_started = false;');
+  lines.push('');
+
   // -------------------------------------------------------------
   // SETUP FUNCTION
   // -------------------------------------------------------------
@@ -1972,6 +1976,13 @@ export function generateArduinoCode(
   lines.push('  unsigned long currentMillis = millis();');
   lines.push('  if ((unsigned long)(currentMillis - prevScanTime) < SCAN_CYCLE_MS) return;');
   lines.push('  prevScanTime = currentMillis;\n');
+  lines.push('  // Update System Bits (SM_)');
+  lines.push('  SM_ALWAYS_ON = true;');
+  lines.push('  SM_ALWAYS_OFF = false;');
+  lines.push('  SM_FIRST_SCAN = !_sys_started;');
+  lines.push('  _sys_started = true;');
+  lines.push('  SM_1HZ = (currentMillis % 1000) >= 500;');
+  lines.push('  SM_100MS = (currentMillis % 100) >= 50;\n');
 
   // RTC time periodic sync
   if (usesRTC) {
