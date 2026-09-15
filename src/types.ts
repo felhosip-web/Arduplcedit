@@ -251,7 +251,8 @@ export interface PLCVariable {
   initialValue: number | boolean | string;
   currentValue?: number | boolean | string;
   isRetentive?: boolean;    // Flag for EEPROM storage on power loss
-  isVolatile?: boolean;     // Volatile flag for variables modified within Interrupt Service Routines (ISR)
+  isVolatile?: boolean;
+  isSystem?: boolean;       // Fixed, non-deletable system variables (e.g., SM_FIRST_SCAN)     // Volatile flag for variables modified within Interrupt Service Routines (ISR)
   description?: string;
   mappedPin?: string;       // Physical hardware pin binding (e.g. "D2", "A0", "D8")
 }

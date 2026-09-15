@@ -8,7 +8,7 @@ import { ElementBlock } from '../components/ElementBlock';
 import { toast } from 'react-hot-toast';
 import { addElementToRung, createEmptyRung, deleteElementFromRungs, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
 import { FBDEditor } from '../components/fbd/FBDEditor';
-import { FBDDiagram } from '../types';
+import { FBDDiagram, PLCVariable } from '../types';
 import {
   Layers,
   Plus,
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 interface EditorViewProps {
+  variables?: PLCVariable[];
   activeProgram?: Program;
   activeTaskName?: string;
   // Main loop ladder
@@ -53,6 +54,7 @@ interface EditorViewProps {
 }
 
 export const EditorView: React.FC<EditorViewProps> = ({
+  variables,
   activeProgram,
   activeTaskName,
   mainRungs,
@@ -546,6 +548,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
       {activeProgram?.type === 'fbd' ? (
         <div className="flex-1 flex overflow-hidden bg-slate-900 border-t border-slate-800">
           <FBDEditor
+            variables={variables}
             fbd={activeProgram.fbd}
             onUpdateFBD={(newFbd) => onUpdateActiveProgramFBD?.(newFbd)}
           />
