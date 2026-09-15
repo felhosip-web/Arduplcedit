@@ -1178,6 +1178,7 @@ export default function App() {
           onUpdateMainRungs={handleUpdateEffectiveMainRungs}
           activeProgram={activeProgram || undefined}
           activeTaskName={activeTask?.name}
+          variables={history.present.variables}
           setupRungs={setupRungs}
           onUpdateSetupRungs={setSetupRungs}
           subroutines={subroutines}

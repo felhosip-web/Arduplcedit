@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, MouseEvent } from 'react';
-import { FBDBlock, FBDConnection, FBDDiagram } from '../../types';
+import { FBDBlock, FBDConnection, FBDDiagram, PLCVariable } from '../../types';
 
 interface FBDCanvasProps {
   fbd?: FBDDiagram;
+  variables?: PLCVariable[];
   onUpdateFBD: (fbd: FBDDiagram) => void;
 }
 
-export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
+export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpdateFBD }) => {
   const blocks = fbd?.blocks || [];
   const connections = fbd?.connections || [];
 
@@ -15,6 +16,7 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
 
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
 
   // For drawing new connections
   const [connectingFrom, setConnectingFrom] = useState<{ blockId: string, pin: string, type: 'input' | 'output' } | null>(null);
@@ -25,6 +27,9 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
   // Keyboard delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't delete if we are typing in an input
+      if (document.activeElement?.tagName === 'INPUT') return;
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedBlockIds.size > 0 || selectedConnectionIds.size > 0) {
           const newBlocks = blocks.filter(b => !selectedBlockIds.has(b.id));
@@ -61,6 +66,7 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
       const clickY = e.clientY - rect.top;
       setDragOffset({ x: clickX - block.x, y: clickY - block.y });
       setDraggingBlockId(block.id);
+      setDragPos({ x: block.x, y: block.y });
     }
   };
 
@@ -72,16 +78,19 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
       setMousePos({ x, y });
 
       if (draggingBlockId) {
-        const newBlocks = blocks.map(b =>
-          b.id === draggingBlockId ? { ...b, x: x - dragOffset.x, y: y - dragOffset.y } : b
-        );
-        onUpdateFBD({ blocks: newBlocks, connections });
+        setDragPos({ x: x - dragOffset.x, y: y - dragOffset.y });
       }
     }
   };
 
   const handleCanvasMouseUp = () => {
-    setDraggingBlockId(null);
+    if (draggingBlockId) {
+      const newBlocks = blocks.map(b =>
+        b.id === draggingBlockId ? { ...b, x: dragPos.x, y: dragPos.y } : b
+      );
+      onUpdateFBD({ blocks: newBlocks, connections });
+      setDraggingBlockId(null);
+    }
   };
 
   const handleCanvasClick = () => {
@@ -119,36 +128,42 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
     setSelectedBlockIds(new Set());
   };
 
+  const updateBlockVariable = (blockId: string, variableName: string) => {
+    const newBlocks = blocks.map(b =>
+      b.id === blockId
+        ? { ...b, properties: { ...b.properties, variable: variableName } }
+        : b
+    );
+    onUpdateFBD({ blocks: newBlocks, connections });
+  };
+
   const getPinCoords = (blockId: string, pin: string, type: 'input' | 'output') => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return { x: 0, y: 0 };
 
-    // Very simplified pin coordinate estimation based on block type.
-    // In a real app, pins would have exact known positions.
+    const bx = draggingBlockId === blockId ? dragPos.x : block.x;
+    const by = draggingBlockId === blockId ? dragPos.y : block.y;
+
     const width = 120;
-    const pinYOffset = 30; // Assuming pin is somewhat in the middle for simplicity,
-                           // we'll just stack them roughly.
+    const pinYOffset = 30;
 
     const isInput = type === 'input';
-    const x = block.x + (isInput ? 0 : width);
+    const x = bx + (isInput ? 0 : width);
 
-    // Simple heuristic for Y:
-    let y = block.y + pinYOffset;
+    let y = by + pinYOffset;
 
     if (block.type === 'AND' || block.type === 'OR') {
-       if (pin === 'in1') y = block.y + 20;
-       if (pin === 'in2') y = block.y + 60;
-       if (pin === 'out') y = block.y + 40;
+       if (pin === 'in1') y = by + 20;
+       if (pin === 'in2') y = by + 60;
+       if (pin === 'out') y = by + 40;
     } else {
-       y = block.y + 40;
+       y = by + 40;
     }
 
     return { x, y };
   };
 
-  // SVG Path generator
   const createPath = (start: {x: number, y: number}, end: {x: number, y: number}) => {
-    // Simple straight line for now, or bezier
     const dx = end.x - start.x;
     return `M ${start.x} ${start.y} C ${start.x + dx/2} ${start.y}, ${end.x - dx/2} ${end.y}, ${end.x} ${end.y}`;
   };
@@ -166,6 +181,12 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
       outputs = [];
     }
 
+    const isIOSupport = block.type === 'INPUT' || block.type === 'OUTPUT';
+    const boundVar = block.properties?.variable;
+
+    const bx = draggingBlockId === block.id ? dragPos.x : block.x;
+    const by = draggingBlockId === block.id ? dragPos.y : block.y;
+
     return (
       <div
         key={block.id}
@@ -173,10 +194,15 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
         className={`absolute w-[120px] bg-slate-800 border rounded shadow-md select-none cursor-move
           ${isSelected ? 'border-sky-500 shadow-sky-500/20 z-20' : 'border-slate-600 z-10'}
         `}
-        style={{ left: block.x, top: block.y }}
+        style={{ left: bx, top: by }}
       >
-        <div className="bg-slate-900 px-2 py-1 text-xs font-bold text-slate-300 text-center border-b border-slate-700 rounded-t">
-          {block.type}
+        <div className="bg-slate-900 px-2 py-1 text-xs font-bold text-slate-300 text-center border-b border-slate-700 rounded-t flex flex-col">
+          <span>{block.type}</span>
+          {isIOSupport && boundVar && (
+            <span className="text-[10px] text-sky-400 font-normal truncate overflow-hidden max-w-full" title={boundVar}>
+              {boundVar}
+            </span>
+          )}
         </div>
         <div className="p-2 flex justify-between text-xs text-slate-400 min-h-[60px]">
           <div className="flex flex-col gap-2 justify-center">
@@ -210,6 +236,11 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
     );
   };
 
+  // Find single selected IO block for property panel
+  const singleSelectedBlockId = selectedBlockIds.size === 1 ? Array.from(selectedBlockIds)[0] : null;
+  const singleSelectedBlock = singleSelectedBlockId ? blocks.find(b => b.id === singleSelectedBlockId) : null;
+  const showPropertyPanel = singleSelectedBlock && (singleSelectedBlock.type === 'INPUT' || singleSelectedBlock.type === 'OUTPUT');
+
   return (
     <div
       className="flex-1 relative bg-slate-950 overflow-hidden"
@@ -233,7 +264,7 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
               key={conn.id}
               d={createPath(start, end)}
               fill="none"
-              stroke={isSelected ? '#0ea5e9' : '#64748b'} // sky-500 vs slate-500
+              stroke={isSelected ? '#0ea5e9' : '#64748b'}
               strokeWidth={isSelected ? 3 : 2}
               className="pointer-events-auto cursor-pointer hover:stroke-sky-400 transition-colors"
               onClick={(e: any) => handleConnectionClick(e, conn.id)}
@@ -254,6 +285,34 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, onUpdateFBD }) => {
 
       {/* HTML Blocks Layer */}
       {blocks.map(renderBlock)}
+
+      {/* Property Panel for INPUT/OUTPUT */}
+      {showPropertyPanel && singleSelectedBlock && (
+        <div
+          className="absolute right-4 top-4 bg-slate-800 border border-slate-600 rounded shadow-lg p-3 w-64 z-30"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="text-sm font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-1">
+            {singleSelectedBlock.type} Properties
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-400">Variable / Address</label>
+            <input
+              type="text"
+              list="fbd-variables"
+              value={singleSelectedBlock.properties?.variable || ''}
+              onChange={(e) => updateBlockVariable(singleSelectedBlock.id, e.target.value)}
+              placeholder="E.g. I0, Q0, MyVar"
+              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
+            />
+            <datalist id="fbd-variables">
+              {variables.map(v => (
+                <option key={v.id} value={v.name}>{v.name} ({v.address})</option>
+              ))}
+            </datalist>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
