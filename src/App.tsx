@@ -299,6 +299,26 @@ export default function App() {
     }
   }, [activeProgram, tasks, activeTask, setTasks, setRungs]);
 
+  const handleUpdateEffectiveFBD = useCallback((newFbd: import('./types').FBDDiagram) => {
+    if (activeProgram?.type === 'fbd' && tasks) {
+      const newTasks = tasks.map(task => {
+        if (task.id === activeTask?.id) {
+          return {
+            ...task,
+            programs: task.programs.map(prog => {
+              if (prog.id === activeProgram.id) {
+                return { ...prog, fbd: newFbd };
+              }
+              return prog;
+            })
+          };
+        }
+        return task;
+      });
+      setTasks(newTasks);
+    }
+  }, [activeProgram, tasks, activeTask, setTasks]);
+
   // Cache parsed initial state to avoid multiple localStorage parsing (for non-store states)
   const initialSavedState = useMemo(() => {
     try {
@@ -1173,6 +1193,7 @@ export default function App() {
           onOpenMacros={() => setActivePage('macros')}
           activeSubroutineId={activeSubroutineId}
           onSelectActiveSubroutine={setActiveSubroutineId}
+          onUpdateActiveProgramFBD={handleUpdateEffectiveFBD}
         />
       )}
 
