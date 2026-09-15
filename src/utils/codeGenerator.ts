@@ -7,7 +7,9 @@ import {
   PLCVariable,
   PLCArray,
   ProtocolConfigs,
-  InterruptsConfig
+  InterruptsConfig,
+  Task,
+  Program
 } from '../types';
 
 export function generateArduinoCode(
@@ -20,8 +22,24 @@ export function generateArduinoCode(
   arrays: PLCArray[] = [],
   protocols?: ProtocolConfigs,
   setupRungs: Rung[] = [],
-  interrupts?: InterruptsConfig
+  interrupts?: InterruptsConfig,
+  tasks?: Task[]
 ): string {
+  // Resolve execution programs: all ladder programs from cyclic tasks, or fallback to global rungs
+  let executionPrograms: { taskName: string; progName: string; rungs: Rung[] }[] = [];
+  if (tasks && tasks.length > 0) {
+    tasks.filter(t => t.type === 'cyclic').forEach(t => {
+      t.programs.filter(p => p.type === 'ladder' && p.rungs && p.rungs.length > 0).forEach(p => {
+        executionPrograms.push({ taskName: t.name, progName: p.name, rungs: p.rungs! });
+      });
+    });
+  }
+
+  // If no cyclic tasks with ladder programs exist, fallback to global rungs
+  if (executionPrograms.length === 0) {
+    executionPrograms.push({ taskName: 'Global', progName: 'Main', rungs });
+  }
+
   // 1. Determine all referenced pins, variables, and protocol usages
   const inputPins = new Set<string>();
   const outputPins = new Set<string>();
@@ -190,9 +208,11 @@ export function generateArduinoCode(
     r.coils.forEach(analyzeElement);
   });
 
-  rungs.forEach(r => {
-    r.branches.forEach(b => b.elements.forEach(analyzeElement));
-    r.coils.forEach(analyzeElement);
+  executionPrograms.forEach(ep => {
+    ep.rungs.forEach(r => {
+      r.branches.forEach(b => b.elements.forEach(analyzeElement));
+      r.coils.forEach(analyzeElement);
+    });
   });
 
   const hasRetentive = variables.some(v => v.isRetentive);
@@ -2023,8 +2043,11 @@ export function generateArduinoCode(
 
   // 2. Logic Execution for Each Loop Rung
   lines.push('  // --- 2. LÉPÉS: LÉTRAFOKOK KIÉRTÉKELÉSE (LOOP CIKLIKUS SCAN) ---');
-  rungs.forEach((rung, rIdx) => {
-    lines.push(...generateRungLogicBlock(rung, rIdx, 'loop_', false));
+  executionPrograms.forEach((ep, pIdx) => {
+    lines.push(`  // === TASK: ${ep.taskName} | PROGRAM: ${ep.progName} ===`);
+    ep.rungs.forEach((rung, rIdx) => {
+      lines.push(...generateRungLogicBlock(rung, rIdx, `loop_p${pIdx}_`, false));
+    });
   });
 
   // Update previous states for edge detection
