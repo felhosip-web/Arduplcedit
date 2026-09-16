@@ -294,6 +294,8 @@ export function runSimulationStep(
 
   let hasExecutedSetup = prevState.hasExecutedSetup ?? false;
   let setupExecutionTime = prevState.setupExecutionTime;
+  let nextFaultLatched = prevState.faultLatched || false;
+  let nextFaultReasons = prevState.faultReasons ? [...prevState.faultReasons] : [];
 
   // Helper to evaluate a contact element
   function isContactPassing(el: LadderElement): boolean {
@@ -1550,6 +1552,12 @@ export function runSimulationStep(
       nextWatchdogTripCount++;
       nextWatchdogTimerMs = 0;
       nextMcusrFlags.wdrf = true;
+      nextFaultLatched = true;
+      if (!nextFaultReasons.includes("Watchdog Timeout")) {
+        nextFaultReasons.push("Watchdog Timeout");
+      }
+      nextVariableValues['SM_WATCHDOG'] = true;
+      nextVariableValues['SM_FAULT'] = true;
       nextUartLogs.unshift({
         id: `wdt_trip_${Date.now()}`,
         timestamp: formatTimestamp(),
@@ -1558,6 +1566,17 @@ export function runSimulationStep(
       });
       if (nextUartLogs.length > 40) nextUartLogs.pop();
     }
+  }
+
+  // Handle SM_FAULT_RESET
+  if (nextVariableValues['SM_FAULT_RESET']) {
+    nextFaultLatched = false;
+    nextFaultReasons = [];
+    nextVariableValues['SM_FAULT'] = false;
+    nextVariableValues['SM_WATCHDOG'] = false;
+  } else {
+    // Keep SM_FAULT mapped to latched state
+    nextVariableValues['SM_FAULT'] = nextFaultLatched;
   }
 
   // 4. Brown-Out Detection (BOD) Supervisor Scan
@@ -1616,6 +1635,8 @@ export function runSimulationStep(
     watchdogTimerMs: nextWatchdogTimerMs,
     watchdogTimeoutMs,
     watchdogTripCount: nextWatchdogTripCount,
+    faultLatched: nextFaultLatched,
+    faultReasons: nextFaultReasons,
     powerRailVoltage,
     brownoutTripVoltage,
     brownoutTripCount: nextBrownoutTripCount,

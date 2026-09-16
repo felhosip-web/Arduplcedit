@@ -749,6 +749,8 @@ export interface SimulationState {
   watchdogTimerMs: number;                  // Elapsed time since last wdt_reset()
   watchdogTimeoutMs: number;                // Configured WDT timeout ms (e.g. 2000)
   watchdogTripCount: number;                // Number of watchdog reboots
+  faultLatched: boolean;                    // Simulation-level latch for SM_FAULT
+  faultReasons: string[];                   // List of active fault reasons (e.g., "Watchdog")
   powerRailVoltage: number;                 // Simulated VCC power rail (e.g. 5.0V)
   brownoutTripVoltage: number;              // BOD threshold e.g. 4.3V
   brownoutTripCount: number;                // Number of brownout resets

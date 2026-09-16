@@ -1982,7 +1982,10 @@ export function generateArduinoCode(
   lines.push('  SM_FIRST_SCAN = !_sys_started;');
   lines.push('  _sys_started = true;');
   lines.push('  SM_1HZ = (currentMillis % 1000) >= 500;');
-  lines.push('  SM_100MS = (currentMillis % 100) >= 50;\n');
+  lines.push('  SM_100MS = (currentMillis % 100) >= 50;');
+  lines.push('  if (currentMillis - prevScanTime > 200) { SM_WATCHDOG = true; SM_FAULT = true; }');
+  lines.push('  if (SM_FAULT_RESET) { SM_FAULT = false; SM_WATCHDOG = false; }');
+  lines.push('');
 
   // RTC time periodic sync
   if (usesRTC) {
@@ -2060,6 +2063,16 @@ export function generateArduinoCode(
       lines.push(...generateRungLogicBlock(rung, rIdx, `loop_p${pIdx}_`, false));
     });
   });
+
+  // Failsafe Override
+  if (outputPins.size > 0) {
+    lines.push('  // --- FAILSAFE OVERRIDE ---');
+    lines.push('  if (SM_FAULT) {');
+    outputPins.forEach(p => {
+      lines.push(`    digitalWrite(PIN_${p}, LOW); // Failsafe state override`);
+    });
+    lines.push('  }');
+  }
 
   // Update previous states for edge detection
   lines.push('  // --- 3. LÉPÉS: ELŐZŐ ÁLLAPOTOK MENTÉSE ÉLFIGYELÉSHEZ ---');

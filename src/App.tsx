@@ -1304,6 +1304,7 @@ export default function App() {
           onToggleSimulation={handleToggleSimulation}
           onNavigateToEditor={() => setActivePage('editor')}
           onOpenHardwareMap={() => setIsHardwareMapOpen(true)}
+          onSetVariableValue={handleSetVariableValue}
         />
       )}
 

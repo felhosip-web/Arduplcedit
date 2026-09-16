@@ -49,6 +49,8 @@ const INITIAL_SIMULATION_STATE: SimulationState = {
   watchdogTimerMs: 0,
   watchdogTimeoutMs: 2000,
   watchdogTripCount: 0,
+  faultLatched: false,
+  faultReasons: [],
   powerRailVoltage: 5.0,
   brownoutTripVoltage: 4.3,
   brownoutTripCount: 0,
