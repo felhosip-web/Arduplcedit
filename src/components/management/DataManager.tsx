@@ -455,7 +455,14 @@ export const DataManager: React.FC<DataManagerProps> = ({
               <tbody className="divide-y divide-slate-800/60">
                 {variables.map((v) => (
                   <tr key={v.id} className="hover:bg-slate-800/40 group transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-amber-300">{v.name}</td>
+                    <td className="py-2.5 px-3 font-bold text-amber-300 flex items-center gap-2">
+                      {v.name}
+                      {v.isSystem && (
+                        <span className="bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded text-[10px] border border-rose-500/30 flex items-center gap-1" title="Rendszerváltozó (írásvédett)">
+                          <Shield className="w-3 h-3" /> SM
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2.5 px-3 text-slate-400">{v.type}</td>
                     <td className="py-2.5 px-3 font-bold text-emerald-400">{String(v.initialValue)}</td>
                     <td className="py-2.5 px-3">
@@ -477,14 +484,16 @@ export const DataManager: React.FC<DataManagerProps> = ({
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteVariable(v.id)}
-                        className="p-1 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded transition-colors"
-                        title="Törlés"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!v.isSystem && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteVariable(v.id)}
+                          className="p-1 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded transition-colors"
+                          title="Törlés"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -741,7 +750,7 @@ export const DataManager: React.FC<DataManagerProps> = ({
                 <div>
                   <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                    EEPROM Mentés (Retentive változó)
+                    EEPROM Mentés (Retentive változó, Maradó D-regiszter)
                   </span>
                   <p className="text-[11px] text-slate-400">
                     Áramszünet esetén a legutóbbi érték elmentődik az Arduino belső EEPROM-jába, és újrainduláskor visszatöltődik.

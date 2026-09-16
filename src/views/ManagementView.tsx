@@ -7,7 +7,7 @@ import {
   ElementType,
   ElementCategory,
   PLCConstant,
-  PLCVariable,
+  PLCVariable, StateMachine,
   PLCArray,
   ProtocolConfigs,
   InterruptsConfig
@@ -32,8 +32,9 @@ import {
   Zap,
   Clock,
   Variable,
-  Network
+  Network, Tag
 } from 'lucide-react';
+import { StateMachineEditorModal } from '../components/modals/StateMachineEditorModal';
 import { DataManager } from '../components/management/DataManager';
 import { ProtocolsManager } from '../components/management/ProtocolsManager';
 import { InterruptsManager } from '../components/management/InterruptsManager';
@@ -65,6 +66,8 @@ interface ManagementViewProps {
   onDeleteConstant: (id: string) => void;
 
   variables: PLCVariable[];
+  stateMachines: StateMachine[];
+  onUpdateStateMachines: (sms: StateMachine[]) => void;
   onAddVariable: (v: PLCVariable) => void;
   onUpdateVariable: (v: PLCVariable) => void;
   onDeleteVariable: (id: string) => void;
@@ -106,6 +109,8 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
   onDeleteConstant,
 
   variables,
+  stateMachines,
+  onUpdateStateMachines,
   onAddVariable,
   onUpdateVariable,
   onDeleteVariable,
@@ -121,6 +126,20 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
   interrupts,
   onUpdateInterrupts
 }) => {
+  const [isSmModalOpen, setIsSmModalOpen] = useState(false);
+  const handleSaveSm = (sm: StateMachine) => {
+    const existing = stateMachines.find(s => s.id === sm.id);
+    if (existing) {
+      onUpdateStateMachines(stateMachines.map(s => s.id === sm.id ? sm : s));
+    } else {
+      onUpdateStateMachines([...stateMachines, sm]);
+    }
+  };
+  const handleDeleteSm = (id: string) => {
+    onUpdateStateMachines(stateMachines.filter(s => s.id !== id));
+  };
+  const [editingSm, setEditingSm] = useState<StateMachine | null>(null);
+
   const [activeTab, setActiveTab] = useState<'tasks' | 'subroutines' | 'modules' | 'data' | 'protocols' | 'interrupts' | 'libraries' | 'settings'>('tasks');
 
   const { actionLogs, featureFlags, toggleFeatureFlag, clearActionLogs } = useStore();
@@ -521,6 +540,19 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveTab('statemachines')}
+          className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'statemachines'
+              ? 'border-indigo-500 text-indigo-400 font-bold'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Network className="w-4 h-4" />
+          <span>Állapotgépek (SFC)</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('settings')}
           className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all ${
             activeTab === 'settings'
@@ -860,6 +892,68 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
           variables={variables}
           onUpdateVariable={onUpdateVariable}
           subroutines={subroutines}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. TAB: SETTINGS & ACTION LOG */}
+      {/* ======================================================== */}
+      {activeTab === 'statemachines' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div className="border-b border-slate-800 pb-3 mb-4 flex justify-between items-center">
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Network className="w-4 h-4 text-indigo-400" />
+                Állapotgépek (SFC-Lite)
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Szekvenciális folyamatirányítás állapotgépekkel (State Machine).
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingSm(null);
+                setIsSmModalOpen(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Új Állapotgép
+            </button>
+          </div>
+
+          {stateMachines.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {stateMachines.map((sm) => (
+                <div key={sm.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col gap-3 group transition-colors hover:border-indigo-500/50">
+                  <div className="flex justify-between items-start">
+                    <div className="font-bold text-indigo-300 text-sm">{sm.name}</div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingSm(sm); setIsSmModalOpen(true); }} className="p-1.5 text-slate-400 hover:text-indigo-400 rounded hover:bg-slate-700"><Edit2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleDeleteSm(sm.id)} className="p-1.5 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-700"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <div className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> {sm.states.length} Állapot</div>
+                    <div className="flex items-center gap-1.5"><ArrowRight className="w-3.5 h-3.5" /> {sm.transitions.length} Átmenet</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-slate-400 text-sm italic text-center py-8 border-2 border-dashed border-slate-700 rounded-lg">
+              Még nem hoztál létre állapotgépet (SFC).
+            </div>
+          )}
+        </div>
+      )}
+
+      {isSmModalOpen && (
+        <StateMachineEditorModal
+          isOpen={isSmModalOpen}
+          onClose={() => { setIsSmModalOpen(false); setEditingSm(null); }}
+          stateMachine={editingSm}
+          variables={variables}
+          onSave={handleSaveSm}
         />
       )}
 

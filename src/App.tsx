@@ -23,7 +23,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import { DEFAULT_LIBRARIES } from './data/defaultLibraries';
 import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
-import { DEFAULT_CONSTANTS, DEFAULT_VARIABLES, DEFAULT_ARRAYS } from './data/defaultVariables';
+import { DEFAULT_CONSTANTS, DEFAULT_VARIABLES, DEFAULT_ARRAYS } from "./data/defaultVariables";
+import { SYSTEM_VARIABLES } from './data/systemVariables';
 import { DEFAULT_PROTOCOLS } from './data/defaultProtocols';
 import { DEFAULT_INTERRUPTS } from './data/defaultInterrupts';
 import { DEFAULT_MACROS } from './data/defaultMacros';
@@ -144,6 +145,8 @@ const INITIAL_SIMULATION_STATE: SimulationState = {
   watchdogTimerMs: 0,
   watchdogTimeoutMs: 2000,
   watchdogTripCount: 0,
+  faultLatched: false,
+  faultReasons: [],
   powerRailVoltage: 5.0,
   brownoutTripVoltage: 4.3,
   brownoutTripCount: 0,
@@ -352,8 +355,8 @@ export default function App() {
   }, [undoLadder, redoLadder, canUndoLadder, canRedoLadder]);
 
   // Destructure missing global states from the store
-  const { variables, constants, arrays, protocols, interrupts } = history.present;
-  const { setVariables, setConstants, setArrays, setProtocols, setInterrupts } = useStore();
+  const { variables, constants, arrays, protocols, interrupts, stateMachines = [] } = history.present;
+  const { setVariables, setConstants, setArrays, setProtocols, setInterrupts, setStateMachines } = useStore();
 
   // Custom Modules & Templates (Kept in local state for now, or move to store if needed)
   const [customModules, setCustomModules] = useState<CustomModuleTemplate[]>(() => {
@@ -617,7 +620,7 @@ export default function App() {
   };
   const handleUpdateVariable = (v: PLCVariable) =>
     setVariables((prev) => prev.map((item) => (item.id === v.id ? v : item)));
-  const handleDeleteVariable = (id: string) => setVariables((prev) => prev.filter((item) => item.id !== id));
+  const handleDeleteVariable = (id: string) => setVariables((prev) => prev.filter((item) => item.id !== id && !item.isSystem));
 
   const handleAddArray = (a: PLCArray) => {
     setArrays((prev) => [...prev, a]);
@@ -1115,7 +1118,7 @@ export default function App() {
         subroutines: []
       });
       setConstants(DEFAULT_CONSTANTS);
-      setVariables(DEFAULT_VARIABLES);
+      setVariables([...SYSTEM_VARIABLES, ...DEFAULT_VARIABLES]);
       setArrays(DEFAULT_ARRAYS);
       setProtocols(DEFAULT_PROTOCOLS);
       setInterrupts(DEFAULT_INTERRUPTS);
@@ -1178,6 +1181,7 @@ export default function App() {
           onUpdateMainRungs={handleUpdateEffectiveMainRungs}
           activeProgram={activeProgram || undefined}
           activeTaskName={activeTask?.name}
+          variables={history.present.variables}
           setupRungs={setupRungs}
           onUpdateSetupRungs={setSetupRungs}
           subroutines={subroutines}
@@ -1245,6 +1249,8 @@ export default function App() {
           onAddConstant={handleAddConstant}
           onUpdateConstant={handleUpdateConstant}
           onDeleteConstant={handleDeleteConstant}
+          stateMachines={stateMachines}
+          onUpdateStateMachines={setStateMachines}
           variables={variables}
           onAddVariable={handleAddVariable}
           onUpdateVariable={handleUpdateVariable}
@@ -1302,6 +1308,7 @@ export default function App() {
           onToggleSimulation={handleToggleSimulation}
           onNavigateToEditor={() => setActivePage('editor')}
           onOpenHardwareMap={() => setIsHardwareMapOpen(true)}
+          onSetVariableValue={handleSetVariableValue}
         />
       )}
 

@@ -251,7 +251,8 @@ export interface PLCVariable {
   initialValue: number | boolean | string;
   currentValue?: number | boolean | string;
   isRetentive?: boolean;    // Flag for EEPROM storage on power loss
-  isVolatile?: boolean;     // Volatile flag for variables modified within Interrupt Service Routines (ISR)
+  isVolatile?: boolean;
+  isSystem?: boolean;       // Fixed, non-deletable system variables (e.g., SM_FIRST_SCAN)     // Volatile flag for variables modified within Interrupt Service Routines (ISR)
   description?: string;
   mappedPin?: string;       // Physical hardware pin binding (e.g. "D2", "A0", "D8")
 }
@@ -617,6 +618,7 @@ export interface ProjectData {
   protocols: ProtocolConfigs;
   interrupts: InterruptsConfig;
   tasks?: Task[];
+  stateMachines?: StateMachine[];
 }
 
 export interface UartLogEntry {
@@ -748,6 +750,8 @@ export interface SimulationState {
   watchdogTimerMs: number;                  // Elapsed time since last wdt_reset()
   watchdogTimeoutMs: number;                // Configured WDT timeout ms (e.g. 2000)
   watchdogTripCount: number;                // Number of watchdog reboots
+  faultLatched: boolean;                    // Simulation-level latch for SM_FAULT
+  faultReasons: string[];                   // List of active fault reasons (e.g., "Watchdog")
   powerRailVoltage: number;                 // Simulated VCC power rail (e.g. 5.0V)
   brownoutTripVoltage: number;              // BOD threshold e.g. 4.3V
   brownoutTripCount: number;                // Number of brownout resets
@@ -946,3 +950,29 @@ export interface LadderMacro {
   isBuiltIn?: boolean;
 }
 
+
+// --- STATE MACHINE (SFC-LITE) MODELS ---
+export interface StateMachineState {
+  id: string;
+  name: string;          // e.g. IDLE, RUN, FAULT
+  isInitial?: boolean;   // exactly one initial preferred
+}
+
+export interface StateMachineTransition {
+  id: string;
+  fromStateId: string;
+  toStateId: string;
+  // Condition: optional variable/SM bit name that must be true (bool), or empty = always
+  conditionVariable?: string;
+  // Optional label for display
+  label?: string;
+}
+
+export interface StateMachine {
+  id: string;
+  name: string;
+  states: StateMachineState[];
+  transitions: StateMachineTransition[];
+  // Runtime (sim): current state id
+  currentStateId?: string;
+}

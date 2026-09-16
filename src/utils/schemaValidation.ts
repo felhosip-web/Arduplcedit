@@ -227,6 +227,28 @@ export const TaskSchema = z.object({
   programs: z.array(ProgramSchema),
 });
 
+export const StateMachineStateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isInitial: z.boolean().optional()
+});
+
+export const StateMachineTransitionSchema = z.object({
+  id: z.string(),
+  fromStateId: z.string(),
+  toStateId: z.string(),
+  conditionVariable: z.string().optional(),
+  label: z.string().optional()
+});
+
+export const StateMachineSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  states: z.array(StateMachineStateSchema),
+  transitions: z.array(StateMachineTransitionSchema),
+  currentStateId: z.string().optional()
+});
+
 export const ProjectDataSchema = z.object({
   version: z.string(),
   name: z.string().optional(),
@@ -242,6 +264,7 @@ export const ProjectDataSchema = z.object({
   protocols: z.any().optional(), // Can be fully typed later if needed
   interrupts: z.any().optional(),
   tasks: z.array(TaskSchema).optional(),
+  stateMachines: z.array(StateMachineSchema).optional()
 }).passthrough();
 
 export function migrateProjectData(data: any): ProjectData {
@@ -260,6 +283,7 @@ export function migrateProjectData(data: any): ProjectData {
   if (!project.variables) project.variables = [];
   if (!project.constants) project.constants = [];
   if (!project.arrays) project.arrays = [];
+  if (!project.stateMachines) project.stateMachines = [];
   if (!project.version) project.version = '3.1.0';
 
   // Migration for tasks
