@@ -40,5 +40,29 @@ export const SYSTEM_VARIABLES: PLCVariable[] = [
     initialValue: false,
     isSystem: true,
     description: 'Toggles every 50 ms (≈10 Hz clock)'
+  },
+  {
+    id: 'sys_fault',
+    name: 'SM_FAULT',
+    type: 'bool',
+    initialValue: false,
+    isSystem: true,
+    description: 'True while any active fault is latched'
+  },
+  {
+    id: 'sys_watchdog',
+    name: 'SM_WATCHDOG',
+    type: 'bool',
+    initialValue: false,
+    isSystem: true,
+    description: 'True if scan cycle exceeds a configured limit (watchdog tripped)'
+  },
+  {
+    id: 'sys_fault_reset',
+    name: 'SM_FAULT_RESET',
+    type: 'bool',
+    initialValue: false,
+    isSystem: true,
+    description: 'When true, clears latched faults (SM_FAULT / SM_WATCHDOG)'
   }
 ];

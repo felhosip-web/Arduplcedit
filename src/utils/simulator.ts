@@ -14,10 +14,12 @@ import {
   InterruptLogEntry,
   ModbusLogEntry,
   ProtocolConfigs,
-  ExpanderLogEntry
+  ExpanderLogEntry,
+  StateMachine
 } from '../types';
 import { estimateRungExecutionUs } from './diagnosticsCalculator';
 import { buildModbusQuery, calculateModbusCRC, bytesToHexString, getModbusFunctionName } from './modbusUtils';
+import { advanceTime, EvaluationContext, StateMachineModel } from './stateMachineCore';
 
 function formatTimestamp(): string {
   const d = new Date();
@@ -34,7 +36,8 @@ export function runSimulationStep(
   subroutines: Subroutine[] = [],
   setupRungs: Rung[] = [],
   interrupts?: InterruptsConfig,
-  protocols?: ProtocolConfigs
+  protocols?: ProtocolConfigs,
+  stateMachines: StateMachine[] = []
 ): SimulationState {
   const nextDigitalOutputs: Record<string, boolean> = { ...prevState.digitalOutputs };
   const nextInternalFlags: Record<string, boolean> = { ...prevState.internalFlags };
@@ -91,7 +94,9 @@ export function runSimulationStep(
   const currentInputs = prevState.digitalInputs;
   let timer1AccumMs = ((prevState as unknown as { _timer1AccumMs?: number })._timer1AccumMs || 0) + deltaTimeMs;
 
-  // System Bits Accumulator
+  // System Bits & Time Accumulators
+  // We need a persistent un-modulo'd timer for state machine delays.
+  let absoluteTimeMs = ((prevState as unknown as { _absoluteTimeMs?: number })._absoluteTimeMs || 0) + deltaTimeMs;
   let sysAccumMs = ((prevState as unknown as { _sysAccumMs?: number })._sysAccumMs || 0) + deltaTimeMs;
   const isFirstScan = !(prevState as unknown as { _sysStarted?: boolean })._sysStarted;
 
@@ -294,6 +299,51 @@ export function runSimulationStep(
 
   let hasExecutedSetup = prevState.hasExecutedSetup ?? false;
   let setupExecutionTime = prevState.setupExecutionTime;
+  let nextFaultLatched = prevState.faultLatched || false;
+  let nextFaultReasons = prevState.faultReasons ? [...prevState.faultReasons] : [];
+
+  // Evaluate state machines
+  stateMachines.forEach(sm => {
+    // 1. Initialize logic: ensure state machine has a starting state
+    const initState = sm.states.find(s => s.isInitial) || sm.states[0];
+    if (!initState) return;
+
+    // Use current recorded state from variables, or fallback to init state
+    const stateVarKey = `SM_${sm.id}_STATE`;
+    const enteredAtVarKey = `SM_${sm.id}_ENTERED_AT`;
+
+    let currentStateId = (nextVariableValues[stateVarKey] as string) || initState.id;
+    let stateEnteredAtMs = (nextVariableValues[enteredAtVarKey] as number) || absoluteTimeMs;
+
+    // Create execution context using absoluteTimeMs
+    // (advanceTime will NOT add deltaTimeMs again, because we pass deltaMs=0 here
+    // to strictly evaluate at the newly updated absoluteTimeMs, OR we can pass
+    // the un-incremented time and let advanceTime add deltaMs. Let's pass the
+    // already updated absoluteTimeMs and delta=0 to keep it clean).
+    const ctx: EvaluationContext = {
+      inputs: {
+        ...prevState.digitalInputs,
+        ...prevState.analogInputs,
+        ...prevState.internalFlags,
+        ...prevState.digitalOutputs,
+        ...prevState.variableValues
+      },
+      nowMs: absoluteTimeMs,
+      stateEnteredAtMs
+    };
+
+    const simTick = advanceTime(sm as StateMachineModel, currentStateId, ctx, 0);
+
+    // Update variable records based on result
+    if (simTick.result.transitionTaken) {
+      nextVariableValues[stateVarKey] = simTick.result.newState;
+      nextVariableValues[enteredAtVarKey] = simTick.ctx.nowMs;
+      // In a real simulator we would apply actionsRun to nextVariableValues/nextDigitalOutputs here
+    } else {
+      nextVariableValues[stateVarKey] = currentStateId;
+      nextVariableValues[enteredAtVarKey] = stateEnteredAtMs;
+    }
+  });
 
   // Helper to evaluate a contact element
   function isContactPassing(el: LadderElement): boolean {
@@ -1550,6 +1600,12 @@ export function runSimulationStep(
       nextWatchdogTripCount++;
       nextWatchdogTimerMs = 0;
       nextMcusrFlags.wdrf = true;
+      nextFaultLatched = true;
+      if (!nextFaultReasons.includes("Watchdog Timeout")) {
+        nextFaultReasons.push("Watchdog Timeout");
+      }
+      nextVariableValues['SM_WATCHDOG'] = true;
+      nextVariableValues['SM_FAULT'] = true;
       nextUartLogs.unshift({
         id: `wdt_trip_${Date.now()}`,
         timestamp: formatTimestamp(),
@@ -1558,6 +1614,17 @@ export function runSimulationStep(
       });
       if (nextUartLogs.length > 40) nextUartLogs.pop();
     }
+  }
+
+  // Handle SM_FAULT_RESET
+  if (nextVariableValues['SM_FAULT_RESET']) {
+    nextFaultLatched = false;
+    nextFaultReasons = [];
+    nextVariableValues['SM_FAULT'] = false;
+    nextVariableValues['SM_WATCHDOG'] = false;
+  } else {
+    // Keep SM_FAULT mapped to latched state
+    nextVariableValues['SM_FAULT'] = nextFaultLatched;
   }
 
   // 4. Brown-Out Detection (BOD) Supervisor Scan
@@ -1588,7 +1655,7 @@ export function runSimulationStep(
 
   return {
     ...prevState,
-    ...( { _sysAccumMs: sysAccumMs, _sysStarted: true } as any ),
+    ...( { _sysAccumMs: sysAccumMs, _absoluteTimeMs: absoluteTimeMs, _sysStarted: true } as any ),
     digitalOutputs: nextDigitalOutputs,
     internalFlags: nextInternalFlags,
     timerStates: nextTimerStates,
@@ -1616,6 +1683,8 @@ export function runSimulationStep(
     watchdogTimerMs: nextWatchdogTimerMs,
     watchdogTimeoutMs,
     watchdogTripCount: nextWatchdogTripCount,
+    faultLatched: nextFaultLatched,
+    faultReasons: nextFaultReasons,
     powerRailVoltage,
     brownoutTripVoltage,
     brownoutTripCount: nextBrownoutTripCount,

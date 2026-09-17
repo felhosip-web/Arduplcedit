@@ -48,6 +48,7 @@ interface DiagnosticsViewProps {
   onToggleSimulation?: () => void;
   onNavigateToEditor?: () => void;
   onOpenHardwareMap?: () => void;
+  onSetVariableValue?: (name: string, value: number | boolean | string) => void;
 }
 
 export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({
@@ -60,10 +61,11 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({
   subroutines = [],
   onToggleSimulation,
   onNavigateToEditor,
-  onOpenHardwareMap
+  onOpenHardwareMap,
+  onSetVariableValue
 }) => {
   const [selectedBoardId, setSelectedBoardId] = useState<string>('uno');
-  const [activeTab, setActiveTab] = useState<'overview' | 'memory' | 'profiler' | 'rules'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'faults' | 'memory' | 'profiler' | 'rules'>('overview');
 
   const selectedBoard = useMemo<BoardProfile>(() => {
     return TARGET_BOARDS.find((b) => b.id === selectedBoardId) || TARGET_BOARDS[0];
@@ -512,6 +514,19 @@ ${tips.map((t) => `- [${t.type.toUpperCase()}] ${t.title}: ${t.description} -> J
 
         <button
           type="button"
+          onClick={() => setActiveTab('faults')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+            activeTab === 'faults'
+              ? 'bg-rose-500 text-slate-950'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+          <span>Rendszer Hibák (Faults)</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('profiler')}
           className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
             activeTab === 'profiler'
@@ -549,6 +564,74 @@ ${tips.map((t) => `- [${t.type.toUpperCase()}] ${t.title}: ${t.description} -> J
           <span>Optimalizálási Javaslatok ({tips.length})</span>
         </button>
       </div>
+
+      {/* TAB CONTENT: FAULTS */}
+      {activeTab === 'faults' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500" />
+                Rendszer Hibák & Diagnosztika
+              </h3>
+              <p className="text-xs text-slate-400">
+                Létra biztonsági hibák, Watchdog és rendszer-állapotbitek.
+              </p>
+            </div>
+            {onSetVariableValue && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSetVariableValue('SM_FAULT_RESET', true);
+                  setTimeout(() => onSetVariableValue('SM_FAULT_RESET', false), 200);
+                }}
+                disabled={!simulationState.faultLatched}
+                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-rose-500/20 active:scale-95"
+              >
+                Hibák Törlése (Reset)
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`p-4 rounded-xl border ${simulationState.variableValues['SM_FAULT'] ? 'bg-rose-950/30 border-rose-800/80' : 'bg-slate-950 border-slate-800'}`}>
+              <div className="text-xs text-slate-400 mb-1">SM_FAULT</div>
+              <div className={`text-lg font-bold font-mono ${simulationState.variableValues['SM_FAULT'] ? 'text-rose-400' : 'text-slate-300'}`}>
+                {simulationState.variableValues['SM_FAULT'] ? 'TRUE (LATCHED)' : 'FALSE'}
+              </div>
+            </div>
+            <div className={`p-4 rounded-xl border ${simulationState.variableValues['SM_WATCHDOG'] ? 'bg-rose-950/30 border-rose-800/80' : 'bg-slate-950 border-slate-800'}`}>
+              <div className="text-xs text-slate-400 mb-1">SM_WATCHDOG</div>
+              <div className={`text-lg font-bold font-mono ${simulationState.variableValues['SM_WATCHDOG'] ? 'text-rose-400' : 'text-slate-300'}`}>
+                {simulationState.variableValues['SM_WATCHDOG'] ? 'TRIPPED' : 'OK'}
+              </div>
+            </div>
+            <div className="p-4 rounded-xl border bg-slate-950 border-slate-800">
+              <div className="text-xs text-slate-400 mb-1">SM_FIRST_SCAN</div>
+              <div className="text-lg font-bold font-mono text-cyan-400">
+                {String(!!simulationState.variableValues['SM_FIRST_SCAN']).toUpperCase()}
+              </div>
+            </div>
+            <div className="p-4 rounded-xl border bg-slate-950 border-slate-800">
+              <div className="text-xs text-slate-400 mb-1">SM_1HZ</div>
+              <div className="text-lg font-bold font-mono text-amber-400">
+                {String(!!simulationState.variableValues['SM_1HZ']).toUpperCase()}
+              </div>
+            </div>
+          </div>
+
+          {simulationState.faultReasons && simulationState.faultReasons.length > 0 && (
+            <div className="mt-4 p-4 rounded-xl bg-rose-950/20 border border-rose-900/50">
+              <h4 className="text-xs font-bold text-rose-300 mb-2">Aktív Hibaokok:</h4>
+              <ul className="list-disc list-inside text-xs text-rose-200/80 space-y-1">
+                {simulationState.faultReasons.map((reason, idx) => (
+                  <li key={idx}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 3. TAB CONTENT: OVERVIEW (WAVEFORM & REAL-TIME OSCILLOSCOPE) */}
       {activeTab === 'overview' && (

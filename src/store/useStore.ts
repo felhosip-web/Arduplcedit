@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement, Task } from '../types';
+import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement, Task, StateMachine } from '../types';
 import { EXAMPLE_PROJECTS } from '../data/exampleProjects';
 import { DEFAULT_SUBROUTINES } from '../data/defaultSubroutines';
 import { DEFAULT_VARIABLES, DEFAULT_CONSTANTS, DEFAULT_ARRAYS } from '../data/defaultVariables';
@@ -49,6 +49,8 @@ const INITIAL_SIMULATION_STATE: SimulationState = {
   watchdogTimerMs: 0,
   watchdogTimeoutMs: 2000,
   watchdogTripCount: 0,
+  faultLatched: false,
+  faultReasons: [],
   powerRailVoltage: 5.0,
   brownoutTripVoltage: 4.3,
   brownoutTripCount: 0,
@@ -82,6 +84,7 @@ export interface LadderState {
   protocols: ProtocolConfigs;
   interrupts: InterruptsConfig;
   tasks?: Task[];
+  stateMachines?: StateMachine[];
 }
 
 interface HistoryState {
@@ -105,6 +108,7 @@ interface AppState {
   setActiveProgramId: (id: string | undefined) => void;
 
   // Actions
+  setStateMachines: (updater: StateMachine[] | ((prev: StateMachine[]) => StateMachine[])) => void;
   setRungs: (updater: Rung[] | ((prev: Rung[]) => Rung[])) => void;
   setSetupRungs: (updater: Rung[] | ((prev: Rung[]) => Rung[])) => void;
   setSubroutines: (updater: Subroutine[] | ((prev: Subroutine[]) => Subroutine[])) => void;
@@ -242,6 +246,12 @@ export const useStore = create<AppState>((set, get) => ({
       }
     };
   }),
+
+  setStateMachines: (updater) => {
+    const state = get();
+    const newStateMachines = typeof updater === 'function' ? updater(state.history.present.stateMachines || []) : updater;
+    get()._updatePresent({ ...state.history.present, stateMachines: newStateMachines });
+  },
 
   setRungs: (updater) => {
     const state = get();
