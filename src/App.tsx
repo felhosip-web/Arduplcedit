@@ -145,6 +145,8 @@ const INITIAL_SIMULATION_STATE: SimulationState = {
   watchdogTimerMs: 0,
   watchdogTimeoutMs: 2000,
   watchdogTripCount: 0,
+  faultLatched: false,
+  faultReasons: [],
   powerRailVoltage: 5.0,
   brownoutTripVoltage: 4.3,
   brownoutTripCount: 0,
@@ -353,8 +355,8 @@ export default function App() {
   }, [undoLadder, redoLadder, canUndoLadder, canRedoLadder]);
 
   // Destructure missing global states from the store
-  const { variables, constants, arrays, protocols, interrupts } = history.present;
-  const { setVariables, setConstants, setArrays, setProtocols, setInterrupts } = useStore();
+  const { variables, constants, arrays, protocols, interrupts, stateMachines = [] } = history.present;
+  const { setVariables, setConstants, setArrays, setProtocols, setInterrupts, setStateMachines } = useStore();
 
   // Custom Modules & Templates (Kept in local state for now, or move to store if needed)
   const [customModules, setCustomModules] = useState<CustomModuleTemplate[]>(() => {
@@ -414,11 +416,11 @@ export default function App() {
       const delta = Math.min(100, now - lastTimeRef.current);
       lastTimeRef.current = now;
 
-      setSimulationState((prev) => runSimulationStep(simulationRungs, prev, delta, subroutines, setupRungs, interrupts, protocols));
+      setSimulationState((prev) => runSimulationStep(simulationRungs, prev, delta, subroutines, setupRungs, interrupts, protocols, stateMachines));
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationState.isRunning, simulationRungs, subroutines, setupRungs, interrupts, protocols]);
+  }, [simulationState.isRunning, simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines]);
 
   // Toggle Simulation Run / Stop
   const handleToggleSimulation = () => {
@@ -462,8 +464,8 @@ export default function App() {
 
   // Single step simulation scan
   const handleStepSimulation = useCallback(() => {
-    setSimulationState((prev) => runSimulationStep(simulationRungs, prev, 20, subroutines, setupRungs, interrupts, protocols));
-  }, [simulationRungs, subroutines, setupRungs, interrupts, protocols]);
+    setSimulationState((prev) => runSimulationStep(simulationRungs, prev, 20, subroutines, setupRungs, interrupts, protocols, stateMachines));
+  }, [simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines]);
 
   // Digital and Analog input controls
   const handleToggleDigitalInput = (pin: string) => {
@@ -1138,7 +1140,8 @@ export default function App() {
     protocols,
     setupRungs,
     interrupts,
-    tasks
+    tasks,
+    stateMachines
   );
 
   return (
@@ -1247,6 +1250,8 @@ export default function App() {
           onAddConstant={handleAddConstant}
           onUpdateConstant={handleUpdateConstant}
           onDeleteConstant={handleDeleteConstant}
+          stateMachines={stateMachines}
+          onUpdateStateMachines={setStateMachines}
           variables={variables}
           onAddVariable={handleAddVariable}
           onUpdateVariable={handleUpdateVariable}

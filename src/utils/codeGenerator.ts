@@ -9,7 +9,8 @@ import {
   ProtocolConfigs,
   InterruptsConfig,
   Task,
-  Program
+  Program,
+  StateMachine
 } from '../types';
 
 export function generateArduinoCode(
@@ -23,7 +24,8 @@ export function generateArduinoCode(
   protocols?: ProtocolConfigs,
   setupRungs: Rung[] = [],
   interrupts?: InterruptsConfig,
-  tasks?: Task[]
+  tasks?: Task[],
+  stateMachines: StateMachine[] = []
 ): string {
   // Resolve execution programs: all ladder programs from cyclic tasks, or fallback to global rungs
   let executionPrograms: { taskName: string; progName: string; rungs: Rung[] }[] = [];
@@ -1660,6 +1662,22 @@ export function generateArduinoCode(
   lines.push('static bool _sys_started = false;');
   lines.push('');
 
+  // Define State Machine variables globally if missing
+  if (stateMachines && stateMachines.length > 0) {
+    lines.push('// --- State Machine Globals ---');
+    stateMachines.forEach(sm => {
+      const initState = sm.states.find(s => s.isInitial) || sm.states[0];
+      const initStateName = initState ? `"${initState.id}"` : '""';
+      if (!variables.some(v => v.name === `SM_${sm.id}_STATE`)) {
+         lines.push(`String SM_${sm.id}_STATE = ${initStateName};`);
+      }
+      if (!variables.some(v => v.name === `SM_${sm.id}_ENTERED_AT`)) {
+         lines.push(`unsigned long SM_${sm.id}_ENTERED_AT = 0;`);
+      }
+    });
+    lines.push('');
+  }
+
   // -------------------------------------------------------------
   // SETUP FUNCTION
   // -------------------------------------------------------------
@@ -2054,6 +2072,53 @@ export function generateArduinoCode(
     lines.push('  }');
   }
   lines.push('');
+
+  // State Machine Execution
+  if (stateMachines && stateMachines.length > 0) {
+    lines.push('  // --- SFC-LITE STATE MACHINES ---');
+    stateMachines.forEach(sm => {
+      lines.push(`  // Állapotgép: ${sm.name}`);
+      const stateVar = `SM_${sm.id}_STATE`;
+      const timeVar = `SM_${sm.id}_ENTERED_AT`;
+
+      lines.push(`  if (${stateVar} == "") { ${stateVar} = "${sm.states.find(s => s.isInitial)?.id || sm.states[0]?.id}"; ${timeVar} = currentMillis; }`);
+
+      sm.states.forEach((state, sIdx) => {
+        const branchKw = sIdx === 0 ? 'if' : 'else if';
+        lines.push(`  ${branchKw} (${stateVar} == "${state.id}") {`);
+
+        // Find outgoing transitions
+        const outTrans = sm.transitions.filter(t => t.fromStateId === state.id).sort((a,b) => a.priority - b.priority);
+
+        if (outTrans.length > 0) {
+          outTrans.forEach((trans, tIdx) => {
+            const condBranchKw = tIdx === 0 ? 'if' : 'else if';
+            let condStr = 'true';
+
+            if (trans.condition && trans.condition.kind !== 'always') {
+               // Translate condition AST
+               if (trans.condition.kind === 'comparison') {
+                  const rightVal = trans.condition.right === 1 ? 'true' : trans.condition.right === 0 ? 'false' : trans.condition.right;
+                  condStr = `${trans.condition.left} ${trans.condition.operator} ${rightVal}`;
+               } else if (trans.condition.kind === 'timeout') {
+                  condStr = `(currentMillis - ${timeVar}) >= ${trans.condition.timeoutMs}`;
+               } else {
+                  throw new Error(`Nem támogatott állapotgép feltétel: ${trans.condition.kind}`);
+               }
+            }
+
+            lines.push(`    ${condBranchKw} (${condStr}) {`);
+            lines.push(`      ${stateVar} = "${trans.toStateId}";`);
+            lines.push(`      ${timeVar} = currentMillis;`);
+            lines.push(`    }`);
+          });
+        }
+
+        lines.push(`  }`);
+      });
+      lines.push('');
+    });
+  }
 
   // 2. Logic Execution for Each Loop Rung
   lines.push('  // --- 2. LÉPÉS: LÉTRAFOKOK KIÉRTÉKELÉSE (LOOP CIKLIKUS SCAN) ---');

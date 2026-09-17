@@ -618,6 +618,7 @@ export interface ProjectData {
   protocols: ProtocolConfigs;
   interrupts: InterruptsConfig;
   tasks?: Task[];
+  stateMachines?: StateMachine[];
 }
 
 export interface UartLogEntry {
@@ -949,3 +950,46 @@ export interface LadderMacro {
   isBuiltIn?: boolean;
 }
 
+
+// --- STATE MACHINE (SFC-LITE) MODELS ---
+export type StateId = string;
+
+export interface StateMachineAction {
+  type: string;
+  params: Record<string, unknown>;
+}
+
+export interface StateMachineCondition {
+  kind: 'comparison' | 'timeout' | 'and' | 'or' | 'not' | 'always';
+  left?: string;
+  operator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
+  right?: string | number;
+  timeoutMs?: number;
+  children?: StateMachineCondition[];
+}
+
+export interface StateMachineState {
+  id: StateId;
+  name: string;
+  isInitial?: boolean;
+  entryActions?: StateMachineAction[];
+  exitActions?: StateMachineAction[];
+}
+
+export interface StateMachineTransition {
+  id: string;
+  fromStateId: StateId;
+  toStateId: StateId;
+  condition: StateMachineCondition;
+  actions?: StateMachineAction[];
+  priority: number;
+  label?: string;
+}
+
+export interface StateMachine {
+  id: string;
+  name: string;
+  states: StateMachineState[];
+  transitions: StateMachineTransition[];
+  currentStateId?: string;
+}
