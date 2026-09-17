@@ -227,6 +227,46 @@ export const TaskSchema = z.object({
   programs: z.array(ProgramSchema),
 });
 
+export const StateMachineActionSchema = z.object({
+  type: z.string(),
+  params: z.record(z.string(), z.unknown())
+});
+
+export const StateMachineConditionSchema: z.ZodType<any> = z.lazy(() => z.object({
+  kind: z.enum(['comparison', 'timeout', 'and', 'or', 'not', 'always']),
+  left: z.string().optional(),
+  operator: z.enum(['==', '!=', '>', '<', '>=', '<=']).optional(),
+  right: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  timeoutMs: z.number().optional(),
+  children: z.array(z.lazy(() => StateMachineConditionSchema)).optional()
+}));
+
+export const StateMachineStateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isInitial: z.boolean().optional(),
+  entryActions: z.array(StateMachineActionSchema).optional(),
+  exitActions: z.array(StateMachineActionSchema).optional()
+});
+
+export const StateMachineTransitionSchema = z.object({
+  id: z.string(),
+  fromStateId: z.string(),
+  toStateId: z.string(),
+  condition: StateMachineConditionSchema,
+  actions: z.array(StateMachineActionSchema).optional(),
+  priority: z.number(),
+  label: z.string().optional()
+});
+
+export const StateMachineSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  states: z.array(StateMachineStateSchema),
+  transitions: z.array(StateMachineTransitionSchema),
+  currentStateId: z.string().optional()
+});
+
 export const ProjectDataSchema = z.object({
   version: z.string(),
   name: z.string().optional(),
@@ -242,6 +282,7 @@ export const ProjectDataSchema = z.object({
   protocols: z.any().optional(), // Can be fully typed later if needed
   interrupts: z.any().optional(),
   tasks: z.array(TaskSchema).optional(),
+  stateMachines: z.array(StateMachineSchema).optional()
 }).passthrough();
 
 export function migrateProjectData(data: any): ProjectData {
@@ -260,6 +301,32 @@ export function migrateProjectData(data: any): ProjectData {
   if (!project.variables) project.variables = [];
   if (!project.constants) project.constants = [];
   if (!project.arrays) project.arrays = [];
+  if (!project.stateMachines) project.stateMachines = [];
+
+  // Migration for old string conditionVariable to StateMachineCondition AST
+  project.stateMachines.forEach((sm: any) => {
+    if (sm.transitions) {
+      sm.transitions.forEach((t: any) => {
+        if (t.conditionVariable !== undefined) {
+          if (t.conditionVariable === "") {
+            t.condition = { kind: 'always' };
+          } else {
+            t.condition = {
+              kind: 'comparison',
+              left: t.conditionVariable,
+              operator: '==',
+              right: true
+            };
+          }
+          delete t.conditionVariable;
+        }
+        if (t.priority === undefined) {
+          t.priority = 0;
+        }
+      });
+    }
+  });
+
   if (!project.version) project.version = '3.1.0';
 
   // Migration for tasks
