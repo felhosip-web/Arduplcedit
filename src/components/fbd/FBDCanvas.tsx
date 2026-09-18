@@ -156,14 +156,20 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], simul
     let y = by + pinYOffset; // fallback
 
     // Y center of the pin dot
-    if (block.type === 'AND' || block.type === 'OR') {
+    if (block.type === 'AND' || block.type === 'OR' || block.type === 'XOR') {
        if (pin === 'in1') y = by + 34;
        if (pin === 'in2') y = by + 58;
        if (pin === 'out') y = by + 46;
+    } else if (block.type === 'RS' || block.type === 'SR') {
+       if (pin === 'S' || pin === 'R') {
+           y = (pin === 'S') ? by + 34 : by + 58;
+       } else if (pin === 'Q') {
+           y = by + 46;
+       }
     } else if (block.type === 'OUTPUT') {
        if (pin === 'in') y = by + 46;
     } else {
-       // NOT, INPUT, OUTPUT defaults (in / out)
+       // NOT, INPUT defaults (in / out)
        y = by + 46;
     }
 
@@ -187,6 +193,9 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], simul
     } else if (block.type === 'OUTPUT') {
       inputs = ['in'];
       outputs = [];
+    } else if (block.type === 'RS' || block.type === 'SR') {
+      inputs = ['S', 'R'];
+      outputs = ['Q'];
     }
 
     const isIOSupport = block.type === 'INPUT' || block.type === 'OUTPUT';

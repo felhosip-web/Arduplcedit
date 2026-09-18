@@ -11,7 +11,10 @@ const BLOCKS = [
   { type: 'OUTPUT', label: 'Output Node', desc: 'Writes to a variable' },
   { type: 'AND', label: 'AND Gate', desc: 'Logical AND' },
   { type: 'OR', label: 'OR Gate', desc: 'Logical OR' },
+  { type: 'XOR', label: 'XOR Gate', desc: 'Logical Exclusive OR' },
   { type: 'NOT', label: 'NOT Gate', desc: 'Logical Invert' },
+  { type: 'RS', label: 'RS Latch', desc: 'Reset-Dominant Flip-Flop' },
+  { type: 'SR', label: 'SR Latch', desc: 'Set-Dominant Flip-Flop' },
 ];
 
 export const FBDBlockPalette: React.FC<FBDBlockPaletteProps> = ({ onAddBlock }) => {

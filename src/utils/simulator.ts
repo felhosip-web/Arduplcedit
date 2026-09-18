@@ -300,6 +300,7 @@ export function runSimulationStep(
   const activeBranches: Record<string, boolean> = {};
   const activeElements: Record<string, boolean> = {};
   const nextFbdSignalState: Record<string, boolean> = {};
+  const nextFbdLatchState: Record<string, boolean> = { ...(prevState.fbdLatchState || {}) };
   const activeSetupRungs: Record<string, boolean> = { ...(prevState.activeSetupRungs || {}) };
 
   let hasExecutedSetup = prevState.hasExecutedSetup ?? false;
@@ -634,12 +635,44 @@ export function runSimulationStep(
             changed = true;
           }
         }
+        else if (block.type === 'XOR') {
+          const in1 = getInValue('in1');
+          const in2 = getInValue('in2');
+          const val = in1 !== in2;
+          const current = blockOutputs[`${block.id}_out`] || false;
+          if (current !== val) {
+            blockOutputs[`${block.id}_out`] = val;
+            changed = true;
+          }
+        }
         else if (block.type === 'NOT') {
           const inVal = getInValue('in');
           const val = !inVal;
           const current = blockOutputs[`${block.id}_out`]; // undefined initially
           if (current !== val) {
             blockOutputs[`${block.id}_out`] = val;
+            changed = true;
+          }
+        }
+        else if (block.type === 'RS' || block.type === 'SR') {
+          const s = getInValue('S');
+          const r = getInValue('R');
+          const lastState = nextFbdLatchState[block.id] || false;
+          let val = lastState;
+
+          if (block.type === 'RS') {
+             // Reset-dominant
+             if (r) val = false;
+             else if (s) val = true;
+          } else {
+             // Set-dominant
+             if (s) val = true;
+             else if (r) val = false;
+          }
+
+          const current = blockOutputs[`${block.id}_Q`]; // undefined initially
+          if (current !== val) {
+            blockOutputs[`${block.id}_Q`] = val;
             changed = true;
           }
         }
@@ -670,6 +703,11 @@ export function runSimulationStep(
              nextVariableValues[varName] = val;
            }
         }
+      }
+      else if (block.type === 'RS' || block.type === 'SR') {
+        // Save latch state permanently
+        const qVal = blockOutputs[`${block.id}_Q`] || false;
+        nextFbdLatchState[block.id] = qVal;
       }
       // UI state for pins
       for (const key of Object.keys(blockOutputs)) {
@@ -1827,6 +1865,7 @@ export function runSimulationStep(
     activeSetupRungs,
     setupExecutionTime,
     fbdSignalState: nextFbdSignalState,
+    fbdLatchState: nextFbdLatchState,
     scanDiagnostics: nextScanDiagnostics,
     interruptStats: nextInterruptStats,
     interruptLogs: nextInterruptLogs,
