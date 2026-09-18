@@ -1,15 +1,16 @@
 import React from 'react';
-import { FBDDiagram, FBDBlock, PLCVariable } from '../../types';
+import { FBDDiagram, FBDBlock, PLCVariable, SimulationState } from '../../types';
 import { FBDBlockPalette } from './FBDBlockPalette';
 import { FBDCanvas } from './FBDCanvas';
 
 interface FBDEditorProps {
   variables?: PLCVariable[];
   fbd?: FBDDiagram;
+  simulationState?: SimulationState;
   onUpdateFBD: (fbd: FBDDiagram) => void;
 }
 
-export const FBDEditor: React.FC<FBDEditorProps> = ({ fbd, variables, onUpdateFBD }) => {
+export const FBDEditor: React.FC<FBDEditorProps> = ({ fbd, variables, simulationState, onUpdateFBD }) => {
   const handleAddBlock = (type: string) => {
     const currentFbd = fbd || { blocks: [], connections: [] };
 
@@ -34,7 +35,7 @@ export const FBDEditor: React.FC<FBDEditorProps> = ({ fbd, variables, onUpdateFB
   return (
     <div className="flex-1 flex overflow-hidden">
       <FBDBlockPalette onAddBlock={handleAddBlock} />
-      <FBDCanvas fbd={fbd} variables={variables} onUpdateFBD={onUpdateFBD} />
+      <FBDCanvas fbd={fbd} variables={variables} simulationState={simulationState} onUpdateFBD={onUpdateFBD} />
     </div>
   );
 };

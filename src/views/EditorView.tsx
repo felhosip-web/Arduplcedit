@@ -550,6 +550,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
           <FBDEditor
             variables={variables}
             fbd={activeProgram.fbd}
+            simulationState={simulationState}
             onUpdateFBD={(newFbd) => onUpdateActiveProgramFBD?.(newFbd)}
           />
         </div>

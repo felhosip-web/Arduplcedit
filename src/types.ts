@@ -782,6 +782,8 @@ export interface SimulationState {
   activeRungs: Record<string, boolean>;      // rungId -> is energized
   activeBranches: Record<string, boolean>;   // branchId -> is energized
   activeElements: Record<string, boolean>;   // elementId -> is energized / transmitting power
+  fbdSignalState?: Record<string, boolean>;  // connectionId or block output pin -> active/true state
+  fbdLatchState?: Record<string, boolean>;   // RS/SR flip-flop persistent state memory
   hasExecutedSetup?: boolean;                // Flag indicating whether setup rungs have completed
   activeSetupRungs?: Record<string, boolean>;// setup rungId -> is energized during setup
   setupExecutionTime?: string;               // Timestamp when setup ran
