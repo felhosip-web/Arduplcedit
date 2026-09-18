@@ -974,6 +974,8 @@ export interface StateMachineState {
   isInitial?: boolean;
   entryActions?: StateMachineAction[];
   exitActions?: StateMachineAction[];
+  x?: number;
+  y?: number;
 }
 
 export interface StateMachineTransition {

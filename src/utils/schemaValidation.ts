@@ -246,7 +246,9 @@ export const StateMachineStateSchema = z.object({
   name: z.string(),
   isInitial: z.boolean().optional(),
   entryActions: z.array(StateMachineActionSchema).optional(),
-  exitActions: z.array(StateMachineActionSchema).optional()
+  exitActions: z.array(StateMachineActionSchema).optional(),
+  x: z.number().optional(),
+  y: z.number().optional()
 });
 
 export const StateMachineTransitionSchema = z.object({
