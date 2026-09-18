@@ -275,6 +275,19 @@ export default function App() {
     return rungs;
   }, [tasks, rungs]);
 
+  // Resolve simulation FBD programs: all fbd diagrams from cyclic tasks
+  const simulationFbdPrograms = useMemo(() => {
+    if (tasks && tasks.length > 0) {
+      const cyclicFbdPrograms = tasks
+        .filter(t => t.type === 'cyclic')
+        .flatMap(t => t.programs)
+        .filter(p => p.type === 'fbd' && p.fbd)
+        .map(p => p.fbd!);
+      return cyclicFbdPrograms;
+    }
+    return [];
+  }, [tasks]);
+
   // When editing ladder, decide whether to use the active program's rungs or the top-level (global) rungs
   const effectiveMainRungs = activeProgram?.type === 'ladder' && activeProgram.rungs
     ? activeProgram.rungs
@@ -416,11 +429,11 @@ export default function App() {
       const delta = Math.min(100, now - lastTimeRef.current);
       lastTimeRef.current = now;
 
-      setSimulationState((prev) => runSimulationStep(simulationRungs, prev, delta, subroutines, setupRungs, interrupts, protocols, stateMachines));
+      setSimulationState((prev) => runSimulationStep(simulationRungs, prev, delta, subroutines, setupRungs, interrupts, protocols, stateMachines, simulationFbdPrograms));
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simulationState.isRunning, simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines]);
+  }, [simulationState.isRunning, simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines, simulationFbdPrograms]);
 
   // Toggle Simulation Run / Stop
   const handleToggleSimulation = () => {
@@ -464,8 +477,8 @@ export default function App() {
 
   // Single step simulation scan
   const handleStepSimulation = useCallback(() => {
-    setSimulationState((prev) => runSimulationStep(simulationRungs, prev, 20, subroutines, setupRungs, interrupts, protocols, stateMachines));
-  }, [simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines]);
+    setSimulationState((prev) => runSimulationStep(simulationRungs, prev, 20, subroutines, setupRungs, interrupts, protocols, stateMachines, simulationFbdPrograms));
+  }, [simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines, simulationFbdPrograms]);
 
   // Digital and Analog input controls
   const handleToggleDigitalInput = (pin: string) => {

@@ -15,7 +15,10 @@ import {
   ModbusLogEntry,
   ProtocolConfigs,
   ExpanderLogEntry,
-  StateMachine
+  StateMachine,
+  FBDDiagram,
+  FBDBlock,
+  FBDConnection
 } from '../types';
 import { estimateRungExecutionUs } from './diagnosticsCalculator';
 import { buildModbusQuery, calculateModbusCRC, bytesToHexString, getModbusFunctionName } from './modbusUtils';
@@ -37,7 +40,8 @@ export function runSimulationStep(
   setupRungs: Rung[] = [],
   interrupts?: InterruptsConfig,
   protocols?: ProtocolConfigs,
-  stateMachines: StateMachine[] = []
+  stateMachines: StateMachine[] = [],
+  fbdDiagrams: FBDDiagram[] = []
 ): SimulationState {
   const nextDigitalOutputs: Record<string, boolean> = { ...prevState.digitalOutputs };
   const nextInternalFlags: Record<string, boolean> = { ...prevState.internalFlags };
@@ -295,6 +299,7 @@ export function runSimulationStep(
   const activeRungs: Record<string, boolean> = {};
   const activeBranches: Record<string, boolean> = {};
   const activeElements: Record<string, boolean> = {};
+  const nextFbdSignalState: Record<string, boolean> = {};
   const activeSetupRungs: Record<string, boolean> = { ...(prevState.activeSetupRungs || {}) };
 
   let hasExecutedSetup = prevState.hasExecutedSetup ?? false;
@@ -561,6 +566,126 @@ export function runSimulationStep(
     }
 
     return true;
+  }
+
+  // Helper to evaluate an active FBD diagram
+  function evaluateFbdDiagram(diagram: FBDDiagram) {
+    const blocks = diagram.blocks;
+    const connections = diagram.connections;
+
+    // We will build a map of block output pin signals. Key: `${blockId}_${pinName}`
+    // and connection signals. Key: `${connId}`
+    // Initialize outputs to false (or true for NOT blocks if 0 inputs)
+    const blockOutputs: Record<string, boolean> = {};
+
+    // Multi-pass evaluation to handle topological sort and cycles safely
+    const MAX_PASSES = 10;
+
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+      let changed = false;
+
+      for (const block of blocks) {
+        // Collect inputs for this block
+        // Find connections targeting this block
+        const inConnections = connections.filter(c => c.targetBlockId === block.id);
+
+        const getInValue = (pinName: string): boolean => {
+          const conn = inConnections.find(c => c.targetPin === pinName);
+          if (!conn) return false;
+          return blockOutputs[`${conn.sourceBlockId}_${conn.sourcePin}`] || false;
+        };
+
+        if (block.type === 'INPUT') {
+          // INPUT block reads from physical/variables
+          const varName = block.properties?.variable;
+          let val = false;
+          if (varName) {
+            if (varName.startsWith('D') && prevState.digitalInputs[varName] !== undefined) {
+              val = !!prevState.digitalInputs[varName];
+            } else if (varName.startsWith('M') && prevState.internalFlags[varName] !== undefined) {
+              val = !!prevState.internalFlags[varName];
+            } else {
+              val = !!nextVariableValues[varName];
+            }
+          }
+          const current = blockOutputs[`${block.id}_out`] || false;
+          if (current !== val) {
+            blockOutputs[`${block.id}_out`] = val;
+            changed = true;
+          }
+        }
+        else if (block.type === 'AND') {
+          const in1 = getInValue('in1');
+          const in2 = getInValue('in2');
+          const val = in1 && in2;
+          const current = blockOutputs[`${block.id}_out`] || false;
+          if (current !== val) {
+            blockOutputs[`${block.id}_out`] = val;
+            changed = true;
+          }
+        }
+        else if (block.type === 'OR') {
+          const in1 = getInValue('in1');
+          const in2 = getInValue('in2');
+          const val = in1 || in2;
+          const current = blockOutputs[`${block.id}_out`] || false;
+          if (current !== val) {
+            blockOutputs[`${block.id}_out`] = val;
+            changed = true;
+          }
+        }
+        else if (block.type === 'NOT') {
+          const inVal = getInValue('in');
+          const val = !inVal;
+          const current = blockOutputs[`${block.id}_out`]; // undefined initially
+          if (current !== val) {
+            blockOutputs[`${block.id}_out`] = val;
+            changed = true;
+          }
+        }
+        else if (block.type === 'OUTPUT') {
+          const val = getInValue('in');
+          const current = blockOutputs[`${block.id}_in`] || false;
+          if (current !== val) {
+            blockOutputs[`${block.id}_in`] = val;
+            changed = true;
+          }
+        }
+      }
+
+      if (!changed) break;
+    }
+
+    // Apply Output variables and populate nextFbdSignalState for UI
+    for (const block of blocks) {
+      if (block.type === 'OUTPUT') {
+        const val = blockOutputs[`${block.id}_in`] || false;
+        const varName = block.properties?.variable;
+        if (varName) {
+           if (varName.startsWith('D') && prevState.digitalOutputs[varName] !== undefined) {
+             nextDigitalOutputs[varName] = val;
+           } else if (varName.startsWith('M') && prevState.internalFlags[varName] !== undefined) {
+             nextInternalFlags[varName] = val;
+           } else {
+             nextVariableValues[varName] = val;
+           }
+        }
+      }
+      // UI state for pins
+      for (const key of Object.keys(blockOutputs)) {
+         if (key.startsWith(`${block.id}_`)) {
+           nextFbdSignalState[key] = blockOutputs[key];
+         }
+      }
+    }
+
+    // UI state for connections
+    for (const conn of connections) {
+      const sourceVal = blockOutputs[`${conn.sourceBlockId}_${conn.sourcePin}`] || false;
+      nextFbdSignalState[conn.id] = sourceVal;
+      // also mark target pin for glow
+      nextFbdSignalState[`${conn.targetBlockId}_${conn.targetPin}`] = sourceVal;
+    }
   }
 
   // Helper to evaluate an individual rung (either in setup or cyclic loop)
@@ -1571,6 +1696,12 @@ export function runSimulationStep(
     totalScanUs += rungTime;
   }
 
+  // 2.5 Evaluate FBD Diagrams
+  for (const diagram of fbdDiagrams) {
+    evaluateFbdDiagram(diagram);
+    totalScanUs += 10.0; // roughly estimate 10us per diagram
+  }
+
   // Microcontroller hardware execution jitter (±4%)
   const jitter = 0.96 + Math.random() * 0.08;
   const currentScanUs = Math.round(totalScanUs * jitter * 10) / 10;
@@ -1695,6 +1826,7 @@ export function runSimulationStep(
     hasExecutedSetup,
     activeSetupRungs,
     setupExecutionTime,
+    fbdSignalState: nextFbdSignalState,
     scanDiagnostics: nextScanDiagnostics,
     interruptStats: nextInterruptStats,
     interruptLogs: nextInterruptLogs,

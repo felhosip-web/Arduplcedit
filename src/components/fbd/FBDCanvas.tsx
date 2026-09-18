@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect, MouseEvent } from 'react';
-import { FBDBlock, FBDConnection, FBDDiagram, PLCVariable } from '../../types';
+import { FBDBlock, FBDConnection, FBDDiagram, PLCVariable, SimulationState } from '../../types';
 import { renderVariableOptions } from '../ElementInspectorModal';
 
 interface FBDCanvasProps {
   fbd?: FBDDiagram;
   variables?: PLCVariable[];
+  simulationState?: SimulationState;
   onUpdateFBD: (fbd: FBDDiagram) => void;
 }
 
-export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpdateFBD }) => {
+export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], simulationState, onUpdateFBD }) => {
   const blocks = fbd?.blocks || [];
   const connections = fbd?.connections || [];
 
@@ -149,24 +150,29 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpd
     const pinYOffset = 30;
 
     const isInput = type === 'input';
-    const x = bx + (isInput ? 0 : width);
+    // X center of the pin dot
+    const x = bx + (isInput ? -6 : width + 6);
 
-    let y = by + pinYOffset;
+    let y = by + pinYOffset; // fallback
 
+    // Y center of the pin dot
     if (block.type === 'AND' || block.type === 'OR') {
-       if (pin === 'in1') y = by + 20;
-       if (pin === 'in2') y = by + 60;
-       if (pin === 'out') y = by + 40;
+       if (pin === 'in1') y = by + 34;
+       if (pin === 'in2') y = by + 58;
+       if (pin === 'out') y = by + 46;
+    } else if (block.type === 'OUTPUT') {
+       if (pin === 'in') y = by + 46;
     } else {
-       y = by + 40;
+       // NOT, INPUT, OUTPUT defaults (in / out)
+       y = by + 46;
     }
 
     return { x, y };
   };
 
   const createPath = (start: {x: number, y: number}, end: {x: number, y: number}) => {
-    const dx = end.x - start.x;
-    return `M ${start.x} ${start.y} C ${start.x + dx/2} ${start.y}, ${end.x - dx/2} ${end.y}, ${end.x} ${end.y}`;
+    const dx = Math.max(Math.abs(end.x - start.x), 50);
+    return `M ${start.x} ${start.y} C ${start.x + dx/1.5} ${start.y}, ${end.x - dx/1.5} ${end.y}, ${end.x} ${end.y}`;
   };
 
   const renderBlock = (block: FBDBlock) => {
@@ -179,6 +185,7 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpd
     } else if (block.type === 'INPUT') {
       inputs = [];
     } else if (block.type === 'OUTPUT') {
+      inputs = ['in'];
       outputs = [];
     }
 
@@ -207,30 +214,36 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpd
         </div>
         <div className="p-2 flex justify-between text-xs text-slate-400 min-h-[60px]">
           <div className="flex flex-col gap-2 justify-center">
-            {inputs.map(pin => (
-              <div key={pin} className="flex items-center gap-1 -ml-3">
+            {inputs.map(pin => {
+              const isPinHigh = simulationState?.fbdSignalState?.[`${block.id}_${pin}`] ?? false;
+              return (
+              <div key={pin} className="flex items-center gap-1 -ml-[18px]">
                 <div
-                  className={`w-3 h-3 rounded-full border border-slate-500 bg-slate-900 cursor-pointer hover:bg-sky-400
-                    ${connectingFrom?.blockId === block.id && connectingFrom.pin === pin ? 'bg-sky-500 scale-125' : ''}
+                  className={`w-3 h-3 rounded-full border border-slate-500 cursor-pointer hover:bg-sky-400 relative
+                    ${connectingFrom?.blockId === block.id && connectingFrom.pin === pin ? 'bg-sky-500 scale-125' : 'bg-slate-900'}
+                    ${isPinHigh ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : ''}
                   `}
                   onClick={(e) => handlePinClick(e, block.id, pin, 'input')}
                 />
-                <span>{pin}</span>
+                <span className="ml-1">{pin}</span>
               </div>
-            ))}
+            )})}
           </div>
           <div className="flex flex-col gap-2 justify-center">
-            {outputs.map(pin => (
-              <div key={pin} className="flex items-center gap-1 -mr-3">
-                <span>{pin}</span>
+            {outputs.map(pin => {
+              const isPinHigh = simulationState?.fbdSignalState?.[`${block.id}_${pin}`] ?? false;
+              return (
+              <div key={pin} className="flex items-center gap-1 -mr-[18px]">
+                <span className="mr-1">{pin}</span>
                 <div
-                  className={`w-3 h-3 rounded-full border border-slate-500 bg-slate-900 cursor-pointer hover:bg-sky-400
-                     ${connectingFrom?.blockId === block.id && connectingFrom.pin === pin ? 'bg-sky-500 scale-125' : ''}
+                  className={`w-3 h-3 rounded-full border border-slate-500 cursor-pointer hover:bg-sky-400 relative
+                     ${connectingFrom?.blockId === block.id && connectingFrom.pin === pin ? 'bg-sky-500 scale-125' : 'bg-slate-900'}
+                     ${isPinHigh ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : ''}
                   `}
                   onClick={(e) => handlePinClick(e, block.id, pin, 'output')}
                 />
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </div>
@@ -260,14 +273,20 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], onUpd
           const start = getPinCoords(conn.sourceBlockId, conn.sourcePin, 'output');
           const end = getPinCoords(conn.targetBlockId, conn.targetPin, 'input');
           const isSelected = selectedConnectionIds.has(conn.id);
+          const isHigh = simulationState?.fbdSignalState?.[conn.id] ?? false;
+
+          let strokeColor = '#64748b'; // slate-500
+          if (isSelected) strokeColor = '#0ea5e9'; // sky-500
+          else if (isHigh) strokeColor = '#10b981'; // emerald-500
+
           return (
             <path
               key={conn.id}
               d={createPath(start, end)}
               fill="none"
-              stroke={isSelected ? '#0ea5e9' : '#64748b'}
-              strokeWidth={isSelected ? 3 : 2}
-              className="pointer-events-auto cursor-pointer hover:stroke-sky-400 transition-colors"
+              stroke={strokeColor}
+              strokeWidth={isSelected || isHigh ? 3 : 2}
+              className={`pointer-events-auto cursor-pointer transition-colors ${isHigh ? 'drop-shadow-[0_0_3px_rgba(16,185,129,0.5)]' : 'hover:stroke-sky-400'}`}
               onClick={(e: any) => handleConnectionClick(e, conn.id)}
             />
           );
