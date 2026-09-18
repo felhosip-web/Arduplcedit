@@ -10,7 +10,9 @@ import {
   InterruptsConfig,
   Task,
   Program,
-  StateMachine
+  StateMachine,
+  FBDDiagram,
+  FBDBlock
 } from '../types';
 
 export function generateArduinoCode(
@@ -29,16 +31,22 @@ export function generateArduinoCode(
 ): string {
   // Resolve execution programs: all ladder programs from cyclic tasks, or fallback to global rungs
   let executionPrograms: { taskName: string; progName: string; rungs: Rung[] }[] = [];
+  let fbdExecutionPrograms: { taskName: string; progName: string; fbd: FBDDiagram }[] = [];
+
   if (tasks && tasks.length > 0) {
     tasks.filter(t => t.type === 'cyclic').forEach(t => {
-      t.programs.filter(p => p.type === 'ladder' && p.rungs && p.rungs.length > 0).forEach(p => {
-        executionPrograms.push({ taskName: t.name, progName: p.name, rungs: p.rungs! });
+      t.programs.forEach(p => {
+        if (p.type === 'ladder' && p.rungs && p.rungs.length > 0) {
+          executionPrograms.push({ taskName: t.name, progName: p.name, rungs: p.rungs! });
+        } else if (p.type === 'fbd' && p.fbd) {
+          fbdExecutionPrograms.push({ taskName: t.name, progName: p.name, fbd: p.fbd });
+        }
       });
     });
   }
 
   // If no cyclic tasks with ladder programs exist, fallback to global rungs
-  if (executionPrograms.length === 0) {
+  if (executionPrograms.length === 0 && rungs.length > 0) {
     executionPrograms.push({ taskName: 'Global', progName: 'Main', rungs });
   }
 
@@ -48,6 +56,29 @@ export function generateArduinoCode(
   const analogPins = new Set<string>();
   const internalFlags = new Set<string>();
   const timers = new Map<string, { preset: number; type: string }>();
+  const fbdLatches = new Set<string>();
+
+  // Determine FBD referenced variables
+  fbdExecutionPrograms.forEach(ep => {
+    ep.fbd.blocks.forEach(block => {
+      if (block.type === 'INPUT' || block.type === 'OUTPUT') {
+        const varName = block.properties?.variable;
+        if (varName) {
+          if (varName.startsWith('D')) {
+            if (block.type === 'INPUT') inputPins.add(varName);
+            if (block.type === 'OUTPUT') outputPins.add(varName);
+          } else if (varName.startsWith('A')) {
+            analogPins.add(varName);
+          } else if (varName.startsWith('M')) {
+            internalFlags.add(varName);
+          }
+        }
+      } else if (block.type === 'RS' || block.type === 'SR') {
+        fbdLatches.add(block.id);
+      }
+    });
+  });
+
   const counters = new Map<string, { preset: number; type: string }>();
 
   // Modules & Protocols flags
@@ -334,6 +365,15 @@ export function generateArduinoCode(
   // -------------------------------------------------------------
   // VARIABLES (VÁLTOZÓK)
   // -------------------------------------------------------------
+  lines.push('// --- FBD RETESZEK (LATCHES) ---');
+  if (fbdLatches.size > 0) {
+    fbdLatches.forEach(id => {
+       const safeId = id.replace(/[^A-Za-z0-9_]/g, '_');
+       lines.push(`static bool fbd_latch_${safeId} = false;`);
+    });
+    lines.push('');
+  }
+
   lines.push('// --- PLC VÁLTOZÓK (GLOBAL VARIABLES) ---');
   if (variables.length === 0) {
     lines.push('// (Nincsenek egyedi változók definiálva)');
@@ -898,6 +938,116 @@ export function generateArduinoCode(
 
       lines.push('}\n');
     });
+  }
+
+
+  // Helper to compile an FBD diagram into C++ statements for loop()
+  function generateFBDLogicBlock(diagram: FBDDiagram, progName: string): string[] {
+    const fbdLines: string[] = [];
+    fbdLines.push(`  // --- FBD CIKLUS: ${progName} (Multi-pass bool hálózat kiértékelés) ---`);
+    fbdLines.push('  {');
+
+    const blocks = diagram.blocks;
+    const connections = diagram.connections;
+
+    // Helper to sanitize block IDs for variable names
+    const sanitizeId = (id: string) => id.replace(/[^A-Za-z0-9_]/g, '_');
+
+    // Declare all output variables
+    blocks.forEach(block => {
+      const sId = sanitizeId(block.id);
+      if (block.type === 'INPUT' || block.type === 'AND' || block.type === 'OR' || block.type === 'XOR' || block.type === 'NOT') {
+        fbdLines.push(`    bool fbd_out_${sId}_out = false;`);
+      } else if (block.type === 'RS' || block.type === 'SR') {
+        fbdLines.push(`    bool fbd_out_${sId}_Q = fbd_latch_${sId}; // Persisted latch state`);
+      } else if (block.type === 'OUTPUT') {
+        fbdLines.push(`    bool fbd_out_${sId}_in = false;`);
+      }
+    });
+
+    fbdLines.push('    for (int _fbd_pass = 0; _fbd_pass < 10; _fbd_pass++) {');
+    fbdLines.push('      bool _fbd_changed = false;');
+    fbdLines.push('      bool _fbd_new_val = false;');
+
+    blocks.forEach(block => {
+      const sId = sanitizeId(block.id);
+      const inConns = connections.filter(c => c.targetBlockId === block.id);
+
+      const getInValCode = (pinName: string): string => {
+        const conn = inConns.find(c => c.targetPin === pinName);
+        if (!conn) return 'false';
+        return `fbd_out_${sanitizeId(conn.sourceBlockId)}_${conn.sourcePin}`;
+      };
+
+      fbdLines.push(`      // Block: ${block.type} (${sId})`);
+      if (block.type === 'INPUT') {
+        const varName = block.properties?.variable;
+        let readCode = 'false';
+        if (varName) {
+           if (varName.startsWith('D') && inputPins.has(varName)) {
+             readCode = `in_${varName}`; // from initial loop scan
+           } else {
+             readCode = varName; // internal flag or global
+           }
+        }
+        fbdLines.push(`      _fbd_new_val = ${readCode};`);
+        fbdLines.push(`      if (fbd_out_${sId}_out != _fbd_new_val) { fbd_out_${sId}_out = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else if (block.type === 'AND') {
+        fbdLines.push(`      _fbd_new_val = (${getInValCode('in1')} && ${getInValCode('in2')});`);
+        fbdLines.push(`      if (fbd_out_${sId}_out != _fbd_new_val) { fbd_out_${sId}_out = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else if (block.type === 'OR') {
+        fbdLines.push(`      _fbd_new_val = (${getInValCode('in1')} || ${getInValCode('in2')});`);
+        fbdLines.push(`      if (fbd_out_${sId}_out != _fbd_new_val) { fbd_out_${sId}_out = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else if (block.type === 'XOR') {
+        fbdLines.push(`      _fbd_new_val = (${getInValCode('in1')} != ${getInValCode('in2')});`);
+        fbdLines.push(`      if (fbd_out_${sId}_out != _fbd_new_val) { fbd_out_${sId}_out = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else if (block.type === 'NOT') {
+        fbdLines.push(`      _fbd_new_val = !(${getInValCode('in')});`);
+        fbdLines.push(`      if (fbd_out_${sId}_out != _fbd_new_val) { fbd_out_${sId}_out = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else if (block.type === 'RS' || block.type === 'SR') {
+        fbdLines.push(`      _fbd_new_val = fbd_out_${sId}_Q;`);
+        if (block.type === 'RS') {
+          fbdLines.push(`      if (${getInValCode('R')}) _fbd_new_val = false; else if (${getInValCode('S')}) _fbd_new_val = true;`);
+        } else {
+          fbdLines.push(`      if (${getInValCode('S')}) _fbd_new_val = true; else if (${getInValCode('R')}) _fbd_new_val = false;`);
+        }
+        fbdLines.push(`      if (fbd_out_${sId}_Q != _fbd_new_val) { fbd_out_${sId}_Q = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else if (block.type === 'OUTPUT') {
+        fbdLines.push(`      _fbd_new_val = ${getInValCode('in')};`);
+        fbdLines.push(`      if (fbd_out_${sId}_in != _fbd_new_val) { fbd_out_${sId}_in = _fbd_new_val; _fbd_changed = true; }`);
+      }
+      else {
+        fbdLines.push(`      #error "Ismeretlen FBD blokk típus: ${block.type}"`);
+      }
+    });
+
+    fbdLines.push('      if (!_fbd_changed) break;');
+    fbdLines.push('    }');
+
+    fbdLines.push('    // Apply outputs to global state');
+    blocks.forEach(block => {
+      const sId = sanitizeId(block.id);
+      if (block.type === 'OUTPUT') {
+        const varName = block.properties?.variable;
+        if (varName) {
+           fbdLines.push(`    ${varName} = fbd_out_${sId}_in;`);
+           if (varName.startsWith('D') && outputPins.has(varName)) {
+              fbdLines.push(`    digitalWrite(PIN_${varName}, ${varName} ? HIGH : LOW);`);
+           }
+        }
+      } else if (block.type === 'RS' || block.type === 'SR') {
+        fbdLines.push(`    fbd_latch_${sId} = fbd_out_${sId}_Q;`);
+      }
+    });
+
+    fbdLines.push('  }');
+    return fbdLines;
   }
 
   // Helper to compile a rung into C++ statements for setup() or loop()
@@ -2123,11 +2273,19 @@ export function generateArduinoCode(
   // 2. Logic Execution for Each Loop Rung
   lines.push('  // --- 2. LÉPÉS: LÉTRAFOKOK KIÉRTÉKELÉSE (LOOP CIKLIKUS SCAN) ---');
   executionPrograms.forEach((ep, pIdx) => {
-    lines.push(`  // === TASK: ${ep.taskName} | PROGRAM: ${ep.progName} ===`);
+    lines.push(`  // === TASK: ${ep.taskName} | LADDER PROGRAM: ${ep.progName} ===`);
     ep.rungs.forEach((rung, rIdx) => {
       lines.push(...generateRungLogicBlock(rung, rIdx, `loop_p${pIdx}_`, false));
     });
   });
+
+  // 2.5 Logic Execution for FBD Diagrams
+  if (fbdExecutionPrograms.length > 0) {
+    lines.push('  // --- 2.5. LÉPÉS: FBD BLOKK HÁLÓZATOK KIÉRTÉKELÉSE ---');
+    fbdExecutionPrograms.forEach(ep => {
+      lines.push(...generateFBDLogicBlock(ep.fbd, ep.progName));
+    });
+  }
 
   // Failsafe Override
   if (outputPins.size > 0) {
