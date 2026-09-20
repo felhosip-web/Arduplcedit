@@ -28,6 +28,7 @@ interface LadderCanvasProps {
   rungs: Rung[];
   simulationState: SimulationState;
   selectedRungIndex: number;
+  searchQuery?: string;
   isSetupSection?: boolean;
   onSelectRung: (index: number) => void;
   onSelectElement: (el: LadderElement) => void;
@@ -444,6 +445,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   rungs,
   simulationState,
   selectedRungIndex,
+  searchQuery,
   isSetupSection = false,
   onSelectRung,
   onSelectElement,
@@ -603,6 +605,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                 rung={rung}
                 rIndex={rIndex}
                 isSelected={selectedRungIndex === rIndex}
+            searchQuery={searchQuery}
                 simulationState={simulationState}
                 isSetupSection={isSetupSection}
                 validationErrors={validationErrors}
