@@ -10,6 +10,7 @@ interface ContextMenuProps {
   onEdit: (element: LadderElement) => void;
   onDelete: (id: string) => void;
   onTunePid?: (element: LadderElement) => void;
+  onCrossReference?: (element: LadderElement) => void;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -19,7 +20,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onClose,
   onEdit,
   onDelete,
-  onTunePid
+  onTunePid,
+  onCrossReference
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +74,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           }}
         >
           <Activity className="w-4 h-4 text-amber-400" /> PID Hangolás
+        </button>
+      )}
+
+      {onCrossReference && (
+        <button
+          type="button"
+          className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCrossReference(element);
+            onClose();
+          }}
+        >
+          <span className="w-4 h-4 flex items-center justify-center font-bold text-sky-400">?</span>
+          Keresztreferencia
         </button>
       )}
 

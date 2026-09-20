@@ -28,6 +28,7 @@ interface LadderCanvasProps {
   rungs: Rung[];
   simulationState: SimulationState;
   selectedRungIndex: number;
+  searchQuery?: string;
   isSetupSection?: boolean;
   onSelectRung: (index: number) => void;
   onSelectElement: (el: LadderElement) => void;
@@ -42,6 +43,7 @@ interface LadderCanvasProps {
   onDropElementOnBranch: (rungId: string, branchId: string, index: number, elementData: Partial<LadderElement>) => void;
   onDropElementOnCoils: (rungId: string, index: number, elementData: Partial<LadderElement>) => void;
   onTunePid?: (el: LadderElement) => void;
+  onCrossReference?: (el: LadderElement) => void;
 }
 
 // --- Inner Memoized Component for each Rung (Virtualization/Memoization) ---
@@ -67,6 +69,7 @@ interface RungRowProps {
   onDuplicateRung: (id: string) => void;
   onDeleteRung: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
+  onCrossReference?: (el: LadderElement) => void;
   totalRungsCount: number;
   onContextMenuOpen: (e: React.MouseEvent, element: LadderElement) => void;
 }
@@ -75,6 +78,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   rung,
   rIndex,
   isSelected,
+  searchQuery,
   simulationState,
   isSetupSection,
   validationErrors,
@@ -93,6 +97,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   onDuplicateRung,
   onDeleteRung,
   onTunePid,
+  onCrossReference,
   totalRungsCount,
   onContextMenuOpen
 }) => {
@@ -201,16 +206,16 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 }
               }}
               placeholder="Megjegyzés a fokhoz..."
-              className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-md focus:outline-none focus:border-sky-500"
+              className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-slate-100 flex-1 focus:outline-none focus:border-sky-500 shadow-sm"
             />
           ) : (
             <div
               onClick={() => setEditingCommentRungId(rung.id)}
-              className="text-slate-400 hover:text-slate-200 cursor-pointer flex items-center gap-1.5 truncate max-w-md"
+              className="text-slate-300 hover:text-slate-100 cursor-pointer flex items-start gap-2 bg-slate-800/40 hover:bg-slate-800 px-2 py-1 rounded transition-colors flex-1"
               title="Kattints a megjegyzés szerkesztéséhez"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              <span className="truncate">{rung.comment || 'Megjegyzés hozzáadása...'}</span>
+              <MessageSquare className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
+              <span className="whitespace-pre-wrap break-words text-sm font-medium leading-tight">{rung.comment || 'Megjegyzés hozzáadása...'}</span>
             </div>
           )}
 
@@ -343,6 +348,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                         onDelete={onDeleteElement}
                         onTunePid={onTunePid}
                         onContextMenu={(e) => onContextMenuOpen(e, el)}
+                        searchQuery={searchQuery}
                       />
 
                       {/* Connecting Wire & Drop zone between elements */}
@@ -403,6 +409,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 onDelete={onDeleteElement}
                 onTunePid={onTunePid}
                 onContextMenu={(e) => onContextMenuOpen(e, coil)}
+                searchQuery={searchQuery}
               />
 
               {/* Connecting wire between multiple coils */}
@@ -438,6 +445,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   rungs,
   simulationState,
   selectedRungIndex,
+  searchQuery,
   isSetupSection = false,
   onSelectRung,
   onSelectElement,
@@ -451,7 +459,8 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   onDeleteParallelBranch,
   onDropElementOnBranch,
   onDropElementOnCoils,
-  onTunePid
+  onTunePid,
+  onCrossReference
 }) => {
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const dragTargetRef = useRef<string | null>(null);
@@ -535,6 +544,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
             onEdit={onSelectElement}
             onDelete={onDeleteElement}
             onTunePid={onTunePid}
+            onCrossReference={onCrossReference}
           />
         )}
 
@@ -595,6 +605,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                 rung={rung}
                 rIndex={rIndex}
                 isSelected={selectedRungIndex === rIndex}
+            searchQuery={searchQuery}
                 simulationState={simulationState}
                 isSetupSection={isSetupSection}
                 validationErrors={validationErrors}
@@ -613,6 +624,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                 onDuplicateRung={onDuplicateRung}
                 onDeleteRung={onDeleteRung}
                 onTunePid={onTunePid}
+                onCrossReference={onCrossReference}
                 totalRungsCount={rungs.length}
                 onContextMenuOpen={handleContextMenuOpen}
               />

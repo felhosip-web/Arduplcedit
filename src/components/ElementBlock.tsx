@@ -13,6 +13,7 @@ interface ElementBlockProps {
   onDelete: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  searchQuery?: string;
 }
 
 export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
@@ -24,9 +25,25 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   onSelect,
   onDelete,
   onTunePid,
-  onContextMenu
+  onContextMenu,
+  searchQuery
 }) => {
   const isPassing = isSimulating && isActive;
+
+  const isMatch = React.useMemo(() => {
+    if (!searchQuery || searchQuery.trim() === "") return false;
+    const q = searchQuery.toLowerCase();
+    if (element.name.toLowerCase().includes(q)) return true;
+    if (element.variable && element.variable.toLowerCase().includes(q)) return true;
+    if (element.pin && element.pin.toLowerCase().includes(q)) return true;
+    if (element.comment && element.comment.toLowerCase().includes(q)) return true;
+    if (element.parameters) {
+      for (const val of Object.values(element.parameters)) {
+        if (String(val).toLowerCase().includes(q)) return true;
+      }
+    }
+    return false;
+  }, [searchQuery, element]);
 
   // Resolve variable reference to name if it's an ID
   const { variables, constants } = useStore(state => state.history.present);
@@ -788,9 +805,11 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
       onClick={() => onSelect(element)}
       onContextMenu={onContextMenu}
       className={`group relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all cursor-pointer select-none ${
-        isPassing
-          ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-          : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-500 hover:bg-slate-800/80'
+        isMatch
+          ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] z-10'
+          : isPassing
+            ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+            : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-500 hover:bg-slate-800/80'
       }`}
     >
       {/* Top Label: Tag or Pin or Variable */}
