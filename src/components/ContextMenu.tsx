@@ -10,6 +10,7 @@ interface ContextMenuProps {
   onEdit: (element: LadderElement) => void;
   onDelete: (id: string) => void;
   onTunePid?: (element: LadderElement) => void;
+  onCrossReference?: (element: LadderElement) => void;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({

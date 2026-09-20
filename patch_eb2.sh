@@ -1,1 +1,0 @@
-sed -i -z 's/isPassing\n          ? '\'bg-emerald-950\\/20'/isMatch\n          ? '\''bg-yellow-500\/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] z-10'\''\n          : isPassing\n            ? '\''bg-emerald-950\/20/g' src/components/ElementBlock.tsx

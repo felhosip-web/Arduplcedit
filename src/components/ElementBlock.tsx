@@ -13,6 +13,7 @@ interface ElementBlockProps {
   onDelete: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  searchQuery?: string;
 }
 
 export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
