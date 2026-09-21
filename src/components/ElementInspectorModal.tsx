@@ -117,7 +117,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
     ['DALLAS_READ', 'I2C_WRITE', 'I2C_READ', 'SPI_TRANSFER', 'UART_PRINT', 'UART_READ'].includes(formData.type);
 
   const isVariableOp =
-    formData.category === 'variable_op' || ['VAR_ASSIGN', 'VAR_CMP'].includes(formData.type);
+    formData.category === 'variable_op' || ['VAR_ASSIGN', 'VAR_CMP', 'MOV', 'WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR'].includes(formData.type);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
@@ -456,6 +456,154 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------------------- */}
+          {/* WORD & BIT OPERATIONS (MOV, WAND, WOR, WXOR, WNOT, SHL, SHR) */}
+          {/* ------------------------------------------------------------- */}
+          {['MOV', 'WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR'].includes(formData.type) && (
+            <div className="p-3.5 bg-amber-950/30 border border-amber-800/80 rounded-lg space-y-3.5">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                <VariableIcon className="w-4 h-4" /> Word & Bitenkénti Művelet ({formData.type})
+              </div>
+
+              {/* Destination Variable */}
+              <div>
+                <label className="block text-xs text-slate-300 mb-1">
+                  Cél Változó (Destination / dest)
+                </label>
+                <select
+                  value={formData.targetVariable || formData.variable || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      targetVariable: e.target.value,
+                      variable: e.target.value
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono"
+                >
+                  <option value="">-- Válassz célváltozót --</option>
+                  {renderVariableOptions(variables, true)}
+                </select>
+              </div>
+
+              {/* Operand A / Source Variable or Constant */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">
+                    {formData.type === 'MOV'
+                      ? 'Forrás (Source)'
+                      : formData.type === 'SHL' || formData.type === 'SHR'
+                      ? 'Érték (Value)'
+                      : 'Operand A (a)'}
+                  </label>
+                  <select
+                    value={formData.sourceVariable || ''}
+                    onChange={(e) => setFormData({ ...formData, sourceVariable: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-emerald-300 font-mono"
+                  >
+                    <option value="">-- Válassz változót / konstansot --</option>
+                    {renderVariableOptions(variables, true)}
+                    {constants.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name} ({c.value})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">VAGY Statikus Érték / Változó Név</label>
+                  <input
+                    type="text"
+                    value={formData.sourceVariable || ''}
+                    onChange={(e) => setFormData({ ...formData, sourceVariable: e.target.value })}
+                    placeholder="pl. V_A vagy 255"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Operand B for WAND, WOR, WXOR */}
+              {['WAND', 'WOR', 'WXOR'].includes(formData.type) && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">Operand B (b)</label>
+                    <select
+                      value={formData.operandB || ''}
+                      onChange={(e) => setFormData({ ...formData, operandB: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-teal-300 font-mono"
+                    >
+                      <option value="">-- Válassz változót / konstansot --</option>
+                      {renderVariableOptions(variables, true)}
+                      {constants.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name} ({c.value})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">VAGY Statikus Érték (Hex / Dec)</label>
+                    <input
+                      type="text"
+                      value={formData.operandB || ''}
+                      onChange={(e) => setFormData({ ...formData, operandB: e.target.value })}
+                      placeholder="pl. V_B vagy 0x0F vagy 15"
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Shift Count for SHL, SHR */}
+              {['SHL', 'SHR'].includes(formData.type) && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">Léptetések száma (n)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="31"
+                      value={formData.shiftCount ?? 1}
+                      onChange={(e) =>
+                        setFormData({ ...formData, shiftCount: Number(e.target.value) })
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">VAGY Változó Név</label>
+                    <select
+                      value={typeof formData.shiftCount === 'string' ? formData.shiftCount : ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          shiftCount: e.target.value || formData.shiftCount
+                        })
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                    >
+                      <option value="">-- Statikus szám használata --</option>
+                      {renderVariableOptions(variables, true)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400">
+                {formData.type === 'MOV' && 'Átmásolja a forrás értékét a célváltozóba: dest = source.'}
+                {formData.type === 'WAND' && 'Bitenkénti AND (ÉS) műveletet hajt végre: dest = a & b.'}
+                {formData.type === 'WOR' && 'Bitenkénti OR (VAGY) műveletet hajt végre: dest = a | b.'}
+                {formData.type === 'WXOR' && 'Bitenkénti XOR (Kizáró Vagy) műveletet hajt végre: dest = a ^ b.'}
+                {formData.type === 'WNOT' && 'Bitenkénti NOT (Invertálás) műveletet hajt végre: dest = ~a.'}
+                {formData.type === 'SHL' && 'Bites léptetést hajt végre balra: dest = value << n.'}
+                {formData.type === 'SHR' && 'Bitenkénti logikai léptetést hajt végre jobbra: dest = value >> n.'}
+              </p>
             </div>
           )}
 

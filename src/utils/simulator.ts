@@ -24,6 +24,21 @@ import { estimateRungExecutionUs } from './diagnosticsCalculator';
 import { buildModbusQuery, calculateModbusCRC, bytesToHexString, getModbusFunctionName } from './modbusUtils';
 import { advanceTime, EvaluationContext, StateMachineModel } from './stateMachineCore';
 
+function resolveOperandVal(
+  operand: string | number | undefined,
+  variableValues: Record<string, number | boolean | string>
+): number {
+  if (operand === undefined || operand === '') return 0;
+  if (typeof operand === 'number') return operand;
+  if (variableValues[operand] !== undefined) {
+    const val = variableValues[operand];
+    if (typeof val === 'boolean') return val ? 1 : 0;
+    return Number(val) || 0;
+  }
+  if (!isNaN(Number(operand))) return Number(operand);
+  return 0;
+}
+
 function formatTimestamp(): string {
   const d = new Date();
   const m = String(d.getMinutes()).padStart(2, '0');
@@ -954,6 +969,46 @@ export function runSimulationStep(
               }
               nextArrayValues[coil.arrayName] = updatedArr;
             }
+          }
+        }
+      }
+      else if (coil.type === 'MOV') {
+        if (rungHasPower && !wasCoilActive) {
+          const targetVar = coil.targetVariable || coil.variable;
+          const srcKey = coil.sourceVariable || coil.assignExpression || coil.variable;
+          if (targetVar) {
+            let val: number | boolean | string = 0;
+            if (srcKey && nextVariableValues[srcKey] !== undefined) {
+              val = nextVariableValues[srcKey];
+            } else if (srcKey && !isNaN(Number(srcKey))) {
+              val = Number(srcKey);
+            } else if (srcKey) {
+              val = srcKey;
+            }
+            nextVariableValues[targetVar] = val;
+          }
+        }
+      }
+      else if (['WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR'].includes(coil.type)) {
+        if (rungHasPower && !wasCoilActive) {
+          const targetVar = coil.targetVariable || coil.variable;
+          const valA = resolveOperandVal(coil.sourceVariable || coil.variable, nextVariableValues);
+          const valB = resolveOperandVal(coil.operandB, nextVariableValues);
+          const shift = typeof coil.shiftCount === 'number'
+            ? coil.shiftCount
+            : resolveOperandVal(coil.shiftCount || coil.operandB, nextVariableValues);
+
+          if (targetVar) {
+            let res = 0;
+            switch (coil.type) {
+              case 'WAND': res = (valA & valB) >>> 0; break;
+              case 'WOR':  res = (valA | valB) >>> 0; break;
+              case 'WXOR': res = (valA ^ valB) >>> 0; break;
+              case 'WNOT': res = (~valA) & 0xFFFF; break;
+              case 'SHL':  res = (valA << shift) >>> 0; break;
+              case 'SHR':  res = (valA >>> shift); break;
+            }
+            nextVariableValues[targetVar] = res;
           }
         }
       }

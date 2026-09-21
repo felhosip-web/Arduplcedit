@@ -90,5 +90,5 @@ export function validateRungs(rungs: Rung[], variables?: PLCVariable[], constant
  * Helper to determine if an element category belongs to the output (coil) side.
  */
 export function isCoilOrModule(category: ElementCategory | string): boolean {
-  return ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol'].includes(category);
+  return ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol', 'variable_op', 'variable'].includes(category);
 }

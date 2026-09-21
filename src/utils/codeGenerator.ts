@@ -1407,6 +1407,53 @@ export function generateArduinoCode(
           out.push(`    ${coil.arrayName}[${coil.arrayIndex}] = ${expr};`);
         }
         out.push('  }');
+      } else if (coil.type === 'MOV') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const src = coil.sourceVariable || coil.assignExpression || coil.variable || '0';
+        out.push(`    ${target} = ${src};`);
+        out.push('  }');
+      } else if (coil.type === 'WAND') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const a = coil.sourceVariable || coil.variable || '0';
+        const b = coil.operandB || '0';
+        out.push(`    ${target} = (uint16_t)(${a}) & (uint16_t)(${b});`);
+        out.push('  }');
+      } else if (coil.type === 'WOR') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const a = coil.sourceVariable || coil.variable || '0';
+        const b = coil.operandB || '0';
+        out.push(`    ${target} = (uint16_t)(${a}) | (uint16_t)(${b});`);
+        out.push('  }');
+      } else if (coil.type === 'WXOR') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const a = coil.sourceVariable || coil.variable || '0';
+        const b = coil.operandB || '0';
+        out.push(`    ${target} = (uint16_t)(${a}) ^ (uint16_t)(${b});`);
+        out.push('  }');
+      } else if (coil.type === 'WNOT') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const a = coil.sourceVariable || coil.variable || '0';
+        out.push(`    ${target} = ~(uint16_t)(${a});`);
+        out.push('  }');
+      } else if (coil.type === 'SHL') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const val = coil.sourceVariable || coil.variable || '0';
+        const n = coil.shiftCount ?? coil.operandB ?? 1;
+        out.push(`    ${target} = (uint16_t)(${val}) << (${n});`);
+        out.push('  }');
+      } else if (coil.type === 'SHR') {
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable || 'V_DEST';
+        const val = coil.sourceVariable || coil.variable || '0';
+        const n = coil.shiftCount ?? coil.operandB ?? 1;
+        out.push(`    ${target} = (uint16_t)(${val}) >> (${n});`);
+        out.push('  }');
       } else if (coil.type === 'SUBROUTINE_CALL' && coil.subroutineId) {
         const targetSub = subroutines.find((s) => s.id === coil.subroutineId);
         if (targetSub) {

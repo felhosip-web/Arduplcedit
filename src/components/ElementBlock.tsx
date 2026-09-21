@@ -586,6 +586,125 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
           </div>
         );
 
+      case 'MOV':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <ArrowRightLeft className="w-3 h-3" /> MOV
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">ASSIGN</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              {element.sourceVariable || 'SRC'} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
+      case 'WAND':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <Hash className="w-3 h-3" /> WAND
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">&amp;</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              {element.sourceVariable || 'A'} &amp; {element.operandB || 'B'} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
+      case 'WOR':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <Hash className="w-3 h-3" /> WOR
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">|</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              {element.sourceVariable || 'A'} | {element.operandB || 'B'} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
+      case 'WXOR':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <Hash className="w-3 h-3" /> WXOR
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">^</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              {element.sourceVariable || 'A'} ^ {element.operandB || 'B'} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
+      case 'WNOT':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <Hash className="w-3 h-3" /> WNOT
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">~</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              ~{element.sourceVariable || 'A'} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
+      case 'SHL':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <Hash className="w-3 h-3" /> SHL
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">&lt;&lt;</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              {element.sourceVariable || 'VAL'} &lt;&lt; {element.shiftCount ?? 1} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
+      case 'SHR':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <Hash className="w-3 h-3" /> SHR
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">&gt;&gt;</span>
+            </div>
+            <div className="text-[10px] font-mono text-amber-100 truncate mt-0.5">
+              {element.sourceVariable || 'VAL'} &gt;&gt; {element.shiftCount ?? 1} → {resolvedTargetVar || element.targetVariable || 'DST'}
+            </div>
+          </div>
+        );
+
       case 'BLKMOV':
         return (
           <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[130px] ${
