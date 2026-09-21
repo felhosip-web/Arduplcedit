@@ -970,6 +970,16 @@ export interface LadderMacro {
   isBuiltIn?: boolean;
 }
 
+export interface CustomLadderMacro {
+  id: string;
+  name: string;
+  category: 'custom' | string;
+  description?: string;
+  rungs: Rung[];             // Deep-cloned template rungs
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 
 // --- STATE MACHINE (SFC-LITE) MODELS ---
 export type StateId = string;

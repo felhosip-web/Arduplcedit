@@ -4,8 +4,10 @@ import {
   Rung,
   PLCVariable,
   PLCConstant,
-  PLCArray
+  PLCArray,
+  CustomLadderMacro
 } from '../types';
+import { useStore } from '../store/useStore';
 import {
   Zap,
   Activity,
@@ -14,18 +16,15 @@ import {
   Cpu,
   Clock,
   Sparkles,
-  ArrowRight,
-  Sliders,
-  Check,
-  Copy,
   PlusCircle,
-  HelpCircle,
-  BookOpen,
   ChevronRight,
   Info,
   CheckCircle2,
-  Settings,
-  Code
+  Code,
+  Edit2,
+  Trash2,
+  FolderPlus,
+  Sliders
 } from 'lucide-react';
 
 interface MacrosViewProps {
@@ -61,7 +60,33 @@ export const MacrosView: React.FC<MacrosViewProps> = ({
   });
   const [insertedNotice, setInsertedNotice] = useState<string | null>(null);
 
-  const selectedMacro = macros.find((m) => m.id === selectedMacroId) || macros[0];
+  const customMacros = useStore((state) => state.history.present.customMacros || []);
+  const updateCustomMacro = useStore((state) => state.updateCustomMacro);
+  const deleteCustomMacro = useStore((state) => state.deleteCustomMacro);
+
+  // Edit custom macro state
+  const [editingMacroId, setEditingMacroId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+
+  // Adapt customMacros into Unified Macro view items
+  const customMacroItems: (LadderMacro & { isCustomUserMacro?: boolean; customRaw?: CustomLadderMacro })[] = customMacros.map((cm) => ({
+    id: cm.id,
+    name: cm.name,
+    category: (cm.category as any) || 'custom',
+    description: cm.description || 'Egyedi mentett létramakró.',
+    iconName: 'FolderPlus',
+    parameters: [],
+    buildRungs: () => cm.rungs,
+    codeExplanation: 'Felhasználó által elmentett egyedi áramköri létramakró.',
+    isBuiltIn: false,
+    isCustomUserMacro: true,
+    customRaw: cm
+  }));
+
+  const allMacroItems = [...customMacroItems, ...macros];
+
+  const selectedMacro = allMacroItems.find((m) => m.id === selectedMacroId) || allMacroItems[0];
 
   const currentParams = paramValues[selectedMacro?.id || ''] || {};
 
@@ -78,7 +103,25 @@ export const MacrosView: React.FC<MacrosViewProps> = ({
   const handleApplyMacro = () => {
     if (!selectedMacro) return;
     const generatedRungs = selectedMacro.buildRungs(currentParams);
-    onInsertMacroToLadder(generatedRungs, selectedMacro.name);
+    // Deep clone with fresh IDs on insert
+    const freshRungs: Rung[] = generatedRungs.map((r, rIdx) => ({
+      ...r,
+      id: `m_ins_rung_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${rIdx}`,
+      branches: r.branches.map((b, bIdx) => ({
+        ...b,
+        id: `m_ins_branch_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${bIdx}`,
+        elements: b.elements.map((el, elIdx) => ({
+          ...el,
+          id: `m_ins_el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${elIdx}`
+        }))
+      })),
+      coils: r.coils.map((c, cIdx) => ({
+        ...c,
+        id: `m_ins_coil_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${cIdx}`
+      }))
+    }));
+
+    onInsertMacroToLadder(freshRungs, selectedMacro.name);
     setInsertedNotice(`A(z) "${selectedMacro.name}" sikeresen beillesztve a létraprogram végére!`);
     setTimeout(() => {
       setInsertedNotice(null);
@@ -86,15 +129,20 @@ export const MacrosView: React.FC<MacrosViewProps> = ({
   };
 
   const categories = [
-    { id: 'all', label: 'Összes Makró', count: macros.length },
-    { id: 'motor', label: 'Motor & Meghajtás', count: macros.filter((m) => m.category === 'motor').length },
-    { id: 'safety', label: 'Biztonsági Körök', count: macros.filter((m) => m.category === 'safety').length },
-    { id: 'analog', label: 'Szabályzók & Analóg', count: macros.filter((m) => m.category === 'analog').length },
-    { id: 'sequencer', label: 'Számlálók & Ciklus', count: macros.filter((m) => m.category === 'sequencer').length },
-    { id: 'diagnostics', label: 'Ütemadók & Diagnosztika', count: macros.filter((m) => m.category === 'diagnostics').length }
+    { id: 'all', label: 'Összes Makró', count: allMacroItems.length },
+    { id: 'custom', label: 'Egyedi (Saját)', count: allMacroItems.filter((m) => m.category === 'custom' || (m as any).isCustomUserMacro).length },
+    { id: 'motor', label: 'Motor & Meghajtás', count: allMacroItems.filter((m) => m.category === 'motor').length },
+    { id: 'safety', label: 'Biztonsági Körök', count: allMacroItems.filter((m) => m.category === 'safety').length },
+    { id: 'analog', label: 'Szabályzók & Analóg', count: allMacroItems.filter((m) => m.category === 'analog').length },
+    { id: 'sequencer', label: 'Számlálók & Ciklus', count: allMacroItems.filter((m) => m.category === 'sequencer').length },
+    { id: 'diagnostics', label: 'Ütemadók & Diagnosztika', count: allMacroItems.filter((m) => m.category === 'diagnostics').length }
   ];
 
-  const filteredMacros = macros.filter((m) => selectedCategory === 'all' || m.category === selectedCategory);
+  const filteredMacros = allMacroItems.filter((m) => {
+    if (selectedCategory === 'all') return true;
+    if (selectedCategory === 'custom') return m.category === 'custom' || (m as any).isCustomUserMacro;
+    return m.category === selectedCategory;
+  });
 
   const getMacroIcon = (iconName: string) => {
     switch (iconName) {
@@ -110,6 +158,8 @@ export const MacrosView: React.FC<MacrosViewProps> = ({
         return <Cpu className="w-5 h-5 text-indigo-400" />;
       case 'Clock':
         return <Clock className="w-5 h-5 text-purple-400" />;
+      case 'FolderPlus':
+        return <FolderPlus className="w-5 h-5 text-amber-400" />;
       default:
         return <Sparkles className="w-5 h-5 text-sky-400" />;
     }
@@ -273,21 +323,94 @@ export const MacrosView: React.FC<MacrosViewProps> = ({
                 </div>
               </div>
 
-              {/* Action Button: Insert into Ladder */}
+              {/* Action Buttons: Rename / Delete (for Custom) + Insert into Ladder */}
               <div className="flex flex-col items-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleApplyMacro}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Beillesztés a Létrába</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {(selectedMacro as any).isCustomUserMacro && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingMacroId(selectedMacro.id);
+                          setEditName(selectedMacro.name);
+                          setEditDesc(selectedMacro.description || '');
+                        }}
+                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-sky-300 border border-slate-700 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Saját makró átnevezése / szerkesztése"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Szerkesztés</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Biztosan törölni szeretné a(z) "${selectedMacro.name}" saját makrót?`)) {
+                            deleteCustomMacro(selectedMacro.id);
+                            setSelectedMacroId(allMacroItems[0]?.id || '');
+                          }
+                        }}
+                        className="p-2 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Saját makró törlése"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleApplyMacro}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>Beillesztés a Létrába</span>
+                  </button>
+                </div>
                 <span className="text-[10px] text-slate-400 font-mono">
                   {previewRungs.length} létrafokot ad hozzá
                 </span>
               </div>
             </div>
+
+            {/* Inline Rename Form for Custom Macro */}
+            {editingMacroId === selectedMacro.id && (
+              <div className="p-4 bg-slate-900 border-b border-slate-800 flex items-center gap-3">
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Makró neve"
+                  className="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 font-mono flex-1"
+                />
+                <input
+                  type="text"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="Makró leírása"
+                  className="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-100 flex-2"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editName.trim()) {
+                      updateCustomMacro(selectedMacro.id, editName.trim(), editDesc.trim());
+                      setEditingMacroId(null);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-sky-500 text-slate-950 font-bold text-xs rounded hover:bg-sky-400 transition-colors"
+                >
+                  Mentés
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingMacroId(null)}
+                  className="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded hover:bg-slate-700 transition-colors"
+                >
+                  Mégse
+                </button>
+              </div>
+            )}
 
             {/* Middle Section: Parameters on Left, Generated Rungs Preview on Right */}
             <div className="flex-1 flex overflow-hidden">

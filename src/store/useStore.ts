@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement, Task, StateMachine } from '../types';
+import { Rung, Subroutine, SimulationState, ProjectData, PLCVariable, PLCConstant, PLCArray, ProtocolConfigs, InterruptsConfig, ActionLogEntry, FeatureFlags, LadderElement, Task, StateMachine, CustomLadderMacro } from '../types';
 import { EXAMPLE_PROJECTS } from '../data/exampleProjects';
 import { DEFAULT_SUBROUTINES } from '../data/defaultSubroutines';
 import { DEFAULT_VARIABLES, DEFAULT_CONSTANTS, DEFAULT_ARRAYS } from '../data/defaultVariables';
@@ -85,6 +85,7 @@ export interface LadderState {
   interrupts: InterruptsConfig;
   tasks?: Task[];
   stateMachines?: StateMachine[];
+  customMacros?: CustomLadderMacro[];
 }
 
 interface HistoryState {
@@ -118,6 +119,13 @@ interface AppState {
   setArrays: (updater: PLCArray[] | ((prev: PLCArray[]) => PLCArray[])) => void;
   setProtocols: (updater: ProtocolConfigs | ((prev: ProtocolConfigs) => ProtocolConfigs)) => void;
   setInterrupts: (updater: InterruptsConfig | ((prev: InterruptsConfig) => InterruptsConfig)) => void;
+  setCustomMacros: (updater: CustomLadderMacro[] | ((prev: CustomLadderMacro[]) => CustomLadderMacro[])) => void;
+
+  // Custom Macro actions
+  addCustomMacro: (name: string, category: string, description: string, rungsToSave: Rung[]) => void;
+  updateCustomMacro: (id: string, name: string, description?: string) => void;
+  deleteCustomMacro: (id: string) => void;
+  insertCustomMacroToLadder: (macroId: string) => void;
 
   // Domain Actions wrapper
   logAction: (action: string, details: string) => void;
@@ -171,8 +179,8 @@ const initialLadderState: LadderState = {
   constants: initialSavedState?.constants?.length > 0 ? initialSavedState.constants : DEFAULT_CONSTANTS,
   arrays: initialSavedState?.arrays?.length > 0 ? initialSavedState.arrays : DEFAULT_ARRAYS,
   protocols: initialSavedState?.protocols ? { ...DEFAULT_PROTOCOLS, ...initialSavedState.protocols } : DEFAULT_PROTOCOLS,
-  interrupts: initialSavedState?.interrupts ? { ...DEFAULT_INTERRUPTS, ...initialSavedState.interrupts } : DEFAULT_INTERRUPTS
-,
+  interrupts: initialSavedState?.interrupts ? { ...DEFAULT_INTERRUPTS, ...initialSavedState.interrupts } : DEFAULT_INTERRUPTS,
+  customMacros: initialSavedState?.customMacros || [],
   tasks: initialSavedState?.tasks || [{
     id: 'task_main',
     name: 'Main Task',
@@ -299,6 +307,85 @@ export const useStore = create<AppState>((set, get) => ({
     const state = get();
     const newInterrupts = typeof updater === 'function' ? updater(state.history.present.interrupts) : updater;
     get()._updatePresent({ ...state.history.present, interrupts: newInterrupts });
+  },
+
+  setCustomMacros: (updater) => {
+    const state = get();
+    const newCustomMacros = typeof updater === 'function' ? updater(state.history.present.customMacros || []) : updater;
+    get()._updatePresent({ ...state.history.present, customMacros: newCustomMacros });
+  },
+
+  addCustomMacro: (name, category, description, rungsToSave) => {
+    const state = get();
+    const clonedRungs: Rung[] = rungsToSave.map((r, rIdx) => ({
+      ...r,
+      id: `m_rung_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${rIdx}`,
+      branches: r.branches.map((b, bIdx) => ({
+        ...b,
+        id: `m_branch_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${bIdx}`,
+        elements: b.elements.map((el, elIdx) => ({
+          ...el,
+          id: `m_el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${elIdx}`
+        }))
+      })),
+      coils: r.coils.map((c, cIdx) => ({
+        ...c,
+        id: `m_coil_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${cIdx}`
+      }))
+    }));
+
+    const newMacro: CustomLadderMacro = {
+      id: `cmacro_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name,
+      category: category || 'custom',
+      description,
+      rungs: clonedRungs,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    get().setCustomMacros((prev) => [...prev, newMacro]);
+    get().logAction('ADD_CUSTOM_MACRO', `Created custom macro "${name}" with ${clonedRungs.length} rungs`);
+  },
+
+  updateCustomMacro: (id, name, description) => {
+    get().setCustomMacros((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, name, description, updatedAt: Date.now() } : m))
+    );
+    get().logAction('UPDATE_CUSTOM_MACRO', `Updated custom macro ID: ${id}`);
+  },
+
+  deleteCustomMacro: (id) => {
+    get().setCustomMacros((prev) => prev.filter((m) => m.id !== id));
+    get().logAction('DELETE_CUSTOM_MACRO', `Deleted custom macro ID: ${id}`);
+  },
+
+  insertCustomMacroToLadder: (macroId) => {
+    const state = get();
+    const macro = (state.history.present.customMacros || []).find((m) => m.id === macroId);
+    if (!macro) return;
+
+    const baseCount = state.history.present.rungs.length;
+    const freshRungs: Rung[] = macro.rungs.map((r, rIdx) => ({
+      ...r,
+      id: `rung_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${rIdx}`,
+      number: baseCount + rIdx,
+      branches: r.branches.map((b, bIdx) => ({
+        ...b,
+        id: `b_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${bIdx}`,
+        elements: b.elements.map((el, elIdx) => ({
+          ...el,
+          id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${elIdx}`
+        }))
+      })),
+      coils: r.coils.map((c, cIdx) => ({
+        ...c,
+        id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}_${cIdx}`
+      }))
+    }));
+
+    get().setRungs([...state.history.present.rungs, ...freshRungs]);
+    get().logAction('INSERT_CUSTOM_MACRO', `Inserted custom macro "${macro.name}" (${freshRungs.length} rungs)`);
   },
 
   // --- Domain Logic Wrappers ---

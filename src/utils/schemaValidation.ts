@@ -273,6 +273,16 @@ export const StateMachineSchema = z.object({
   currentStateId: z.string().optional()
 });
 
+export const CustomLadderMacroSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: z.string(),
+  description: z.string().optional(),
+  rungs: z.array(RungSchema),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional()
+});
+
 export const ProjectDataSchema = z.object({
   version: z.string(),
   name: z.string().optional(),
@@ -288,7 +298,8 @@ export const ProjectDataSchema = z.object({
   protocols: z.any().optional(), // Can be fully typed later if needed
   interrupts: z.any().optional(),
   tasks: z.array(TaskSchema).optional(),
-  stateMachines: z.array(StateMachineSchema).optional()
+  stateMachines: z.array(StateMachineSchema).optional(),
+  customMacros: z.array(CustomLadderMacroSchema).optional()
 }).passthrough();
 
 export function migrateProjectData(data: any): ProjectData {
@@ -308,6 +319,7 @@ export function migrateProjectData(data: any): ProjectData {
   if (!project.constants) project.constants = [];
   if (!project.arrays) project.arrays = [];
   if (!project.stateMachines) project.stateMachines = [];
+  if (!(project as any).customMacros) (project as any).customMacros = [];
 
   // Migration for old string conditionVariable to StateMachineCondition AST
   project.stateMachines.forEach((sm: any) => {
