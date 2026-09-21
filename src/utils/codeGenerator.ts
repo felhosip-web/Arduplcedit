@@ -1413,6 +1413,16 @@ export function generateArduinoCode(
         const src = coil.sourceVariable || coil.assignExpression || coil.variable || '0';
         out.push(`    ${target} = ${src};`);
         out.push('  }');
+      } else if (coil.type === 'JMP') {
+        const rawLabel = coil.labelName || 'LBL_SKIP';
+        const safeLabel = rawLabel.replace(/[^A-Za-z0-9_]/g, '_');
+        out.push(`  if (${rungPowerVar}) {`);
+        out.push(`    goto ${safeLabel};`);
+        out.push('  }');
+      } else if (coil.type === 'LBL') {
+        const rawLabel = coil.labelName || 'LBL_SKIP';
+        const safeLabel = rawLabel.replace(/[^A-Za-z0-9_]/g, '_');
+        out.push(`${safeLabel}:; // Ugrási célpont címke`);
       } else if (coil.type === 'WAND') {
         out.push(`  if (${rungPowerVar}) {`);
         const target = coil.targetVariable || coil.variable || 'V_DEST';

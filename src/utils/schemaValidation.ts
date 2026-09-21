@@ -26,6 +26,7 @@ export const LadderElementSchema = z.object({
   sourceVariable: z.string().optional(),
   operandB: z.string().optional(),
   shiftCount: z.union([z.number(), z.string()]).optional(),
+  labelName: z.string().optional(),
   arrayName: z.string().optional(),
   arrayIndex: z.union([z.number(), z.string()]).optional(),
   dallasPin: z.string().optional(),

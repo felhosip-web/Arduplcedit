@@ -117,7 +117,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
     ['DALLAS_READ', 'I2C_WRITE', 'I2C_READ', 'SPI_TRANSFER', 'UART_PRINT', 'UART_READ'].includes(formData.type);
 
   const isVariableOp =
-    formData.category === 'variable_op' || ['VAR_ASSIGN', 'VAR_CMP', 'MOV', 'WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR'].includes(formData.type);
+    formData.category === 'variable_op' || ['VAR_ASSIGN', 'VAR_CMP', 'MOV', 'WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR', 'JMP', 'LBL'].includes(formData.type);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
@@ -456,6 +456,37 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------------------- */}
+          {/* PROGRAM CONTROL FLOW (JMP, LBL) */}
+          {/* ------------------------------------------------------------- */}
+          {(formData.type === 'JMP' || formData.type === 'LBL') && (
+            <div className="p-3.5 bg-amber-950/30 border border-amber-800/80 rounded-lg space-y-3.5">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                <VariableIcon className="w-4 h-4" /> Vezérlésátadás ({formData.type})
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-300 mb-1">
+                  Ugrási Címke Neve (Label Name)
+                </label>
+                <input
+                  type="text"
+                  value={formData.labelName || ''}
+                  onChange={(e) => setFormData({ ...formData, labelName: e.target.value.toUpperCase() })}
+                  placeholder="pl. LBL_SKIP vagy LBL_NEXT"
+                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono uppercase"
+                  required
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                {formData.type === 'JMP'
+                  ? 'Ha a létrafok energizált, a szimulátor és az Arduino kód átugrik a későbbi LBL címkére rendelkező fokra.'
+                  : 'Ez a fok szolgál ugrási célpontként a megfelelő névvel rendelkező JMP utasítás számára.'}
+              </p>
             </div>
           )}
 

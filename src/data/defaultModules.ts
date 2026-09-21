@@ -476,6 +476,29 @@ export const DEFAULT_MODULE_TEMPLATES: CustomModuleTemplate[] = [
     isBuiltIn: true
   },
   // -----------------------------------------------------------------
+  // Program Control Flow (JMP, LBL)
+  // -----------------------------------------------------------------
+  {
+    id: 'mod_jmp',
+    name: 'JMP (Ugrás Címkére)',
+    symbol: '[JMP]',
+    category: 'variable_op',
+    type: 'JMP',
+    description: 'Ha a fok áramot vezet, átugorja a köztes fokokat a megadott LBL címkéig ebben a ciklusban.',
+    labelName: 'LBL_SKIP',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_lbl',
+    name: 'LBL (Ugrási Címke)',
+    symbol: '[LBL]',
+    category: 'variable_op',
+    type: 'LBL',
+    description: 'Ugrási célpont jelölő a létrán a JMP utasítás számára.',
+    labelName: 'LBL_SKIP',
+    isBuiltIn: true
+  },
+  // -----------------------------------------------------------------
   // Word & Bit Operations (MOV, WAND, WOR, WXOR, WNOT, SHL, SHR)
   // -----------------------------------------------------------------
   {

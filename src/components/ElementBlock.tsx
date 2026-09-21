@@ -358,6 +358,40 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
           </div>
         );
 
+      case 'JMP':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[110px] ${
+            isPassing ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_8px_rgba(251,191,36,0.3)]' : 'border-amber-800 text-amber-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-amber-300">
+                <ArrowRightLeft className="w-3 h-3" /> JMP
+              </span>
+              <span className="text-[10px] font-mono text-amber-500">GOTO</span>
+            </div>
+            <div className="text-[10px] font-mono font-bold text-amber-200 truncate mt-0.5">
+              ➔ {element.labelName || 'LBL_SKIP'}
+            </div>
+          </div>
+        );
+
+      case 'LBL':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[110px] ${
+            isPassing ? 'border-emerald-400 ring-1 ring-emerald-400 bg-emerald-950/40 text-emerald-200' : 'border-emerald-800 text-emerald-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-emerald-300">
+                <Hash className="w-3 h-3 text-emerald-400" /> LBL
+              </span>
+              <span className="text-[10px] font-mono text-emerald-500">TARGET</span>
+            </div>
+            <div className="text-[10px] font-mono font-bold text-emerald-200 truncate mt-0.5">
+              : {element.labelName || 'LBL_SKIP'}
+            </div>
+          </div>
+        );
+
       case 'SERVO_WRITE':
         return (
           <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[105px] ${

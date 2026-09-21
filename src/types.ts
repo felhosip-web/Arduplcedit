@@ -39,6 +39,9 @@ export type ElementType =
   | 'WNOT'                 // Bitwise NOT operation: dest := ~a
   | 'SHL'                  // Bit Shift Left: dest := value << n
   | 'SHR'                  // Bit Shift Right: dest := value >> n
+  // Program Control Flow
+  | 'JMP'                  // Jump instruction: jump to label if rung is energized
+  | 'LBL'                  // Label marker: target for JMP instruction
   // FIFO / LIFO Queue & Stack Buffer Operations
   | 'FIFO_PUSH'            // Push item into array queue (First-In, First-Out)
   | 'FIFO_POP'             // Pop oldest item from array queue
@@ -126,6 +129,7 @@ export interface LadderElement {
   sourceVariable?: string;  // Source variable or operand A for MOV / bitwise operations
   operandB?: string;        // Operand B for bitwise operations (WAND, WOR, WXOR) or constant
   shiftCount?: number | string; // Shift count or variable for SHL / SHR operations
+  labelName?: string;       // Label name for JMP / LBL control flow
   arrayName?: string;       // Array name for indexed reading/writing
   arrayIndex?: number | string; // Index number or variable name
   // Protocol params (Dallas, I2C, SPI, UART, NRF24, 24Cxxx)
@@ -877,6 +881,7 @@ export interface CustomModuleTemplate {
   sourceVariable?: string;
   operandB?: string;
   shiftCount?: number | string;
+  labelName?: string;
   compareOp?: CompareOperator;
   compareValue?: number;
   arrayName?: string;

@@ -13,6 +13,13 @@ const ADDRESS_REGEX = /^(X|Y|M|T|C|D)\d+$/;
 export function validateRung(rung: Rung, variables?: PLCVariable[], constants?: PLCConstant[], arrays?: PLCArray[]): ValidationError[] {
   const errors: ValidationError[] = [];
 
+  // Check JMP elements for required labelName
+  for (const coil of rung.coils) {
+    if (coil.type === 'JMP' && (!coil.labelName || coil.labelName.trim() === '')) {
+      errors.push({ rungId: rung.id, message: 'Ugrás (JMP) elem hiányzó célpont címkenévvel.' });
+    }
+  }
+
   // 1. A rung should have at least one branch with elements, or at least one coil.
   const hasElements = rung.branches.some(b => b.elements.length > 0) || rung.coils.length > 0;
   if (!hasElements) {
@@ -83,6 +90,27 @@ export function validateRungs(rungs: Rung[], variables?: PLCVariable[], constant
   rungs.forEach(rung => {
     allErrors = [...allErrors, ...validateRung(rung, variables, constants, arrays)];
   });
+
+  // Check JMP targets within the same program rungs
+  rungs.forEach((rung, index) => {
+    for (const coil of rung.coils) {
+      if (coil.type === 'JMP' && coil.labelName) {
+        const targetName = coil.labelName;
+        // Check if label exists anywhere in program
+        const labelRungIndex = rungs.findIndex(r =>
+          r.coils.some(c => c.type === 'LBL' && c.labelName === targetName) ||
+          r.branches.some(b => b.elements.some(e => e.type === 'LBL' && e.labelName === targetName))
+        );
+
+        if (labelRungIndex === -1) {
+          allErrors.push({ rungId: rung.id, message: `Hiányzó célpont LBL címke (${targetName}) a JMP utasításhoz.` });
+        } else if (labelRungIndex < index) {
+          allErrors.push({ rungId: rung.id, message: `Visszafelé ugrás nem támogatott (${targetName}). A cél LBL címkének későbbi létrán kell lennie.` });
+        }
+      }
+    }
+  });
+
   return allErrors;
 }
 

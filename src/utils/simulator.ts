@@ -1782,11 +1782,45 @@ export function runSimulationStep(
   const rungTimesUs: Record<string, number> = {};
   let totalScanUs = 4.0; // Base loop() timer and scheduler overhead
 
-  for (const rung of rungs) {
+  let rungIdx = 0;
+  while (rungIdx < rungs.length) {
+    const rung = rungs[rungIdx];
     evaluateRung(rung, false);
     const rungTime = estimateRungExecutionUs(rung);
     rungTimesUs[rung.id] = rungTime;
     totalScanUs += rungTime;
+
+    // Check if rung evaluated to true and has an active JMP instruction
+    const isRungEnergized = !!activeRungs[rung.id];
+    let jumped = false;
+
+    if (isRungEnergized) {
+      for (const coil of rung.coils) {
+        if (coil.type === 'JMP' && coil.labelName) {
+          const targetName = coil.labelName;
+          // Find matching later LBL rung
+          for (let targetIdx = rungIdx + 1; targetIdx < rungs.length; targetIdx++) {
+            const candidateRung = rungs[targetIdx];
+            const hasMatchingLabel = candidateRung.coils.some(
+              (el) => el.type === 'LBL' && el.labelName === targetName
+            ) || candidateRung.branches.some((b) =>
+              b.elements.some((el) => el.type === 'LBL' && el.labelName === targetName)
+            );
+
+            if (hasMatchingLabel) {
+              rungIdx = targetIdx;
+              jumped = true;
+              break;
+            }
+          }
+          if (jumped) break;
+        }
+      }
+    }
+
+    if (!jumped) {
+      rungIdx++;
+    }
   }
 
   // 2.5 Evaluate FBD Diagrams

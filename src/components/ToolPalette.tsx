@@ -96,6 +96,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
       sourceVariable: item.sourceVariable,
       operandB: item.operandB,
       shiftCount: item.shiftCount,
+      labelName: item.labelName,
       compareOp: item.compareOp,
       compareValue: item.compareValue,
       arrayName: item.arrayName,
