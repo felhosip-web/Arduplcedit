@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
-import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { validateRungs, ValidationError } from '../utils/validationUtils';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
 import { ContextMenu } from './ContextMenu';
 import { useDroppable } from '@dnd-kit/core';
 import { useStore } from '../store/useStore';
@@ -20,6 +20,41 @@ const DroppableZone = ({ id, children, className }: any) => {
       className={`${className} ${isOver ? 'bg-sky-500/40 border-2 border-dashed border-sky-400 scale-110' : ''}`}
     >
       {children}
+    </div>
+  );
+};
+
+// Zoom control buttons overlay using react-zoom-pan-pinch controls
+const ZoomControlsOverlay: React.FC = () => {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+
+  return (
+    <div className="absolute top-4 right-4 z-40 flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg shadow-xl backdrop-blur-sm">
+      <button
+        type="button"
+        onClick={() => zoomIn(0.1)}
+        className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-sky-300 rounded transition-colors"
+        title="Nagyítás (+10%)"
+      >
+        <ZoomIn className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => zoomOut(0.1)}
+        className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-sky-300 rounded transition-colors"
+        title="Kicsinyítés (-10%)"
+      >
+        <ZoomOut className="w-4 h-4" />
+      </button>
+      <div className="w-px h-4 bg-slate-800 mx-0.5" />
+      <button
+        type="button"
+        onClick={() => resetTransform()}
+        className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-sky-300 rounded transition-colors"
+        title="Nézet Alaphelyzetbe"
+      >
+        <RotateCcw className="w-4 h-4" />
+      </button>
     </div>
   );
 };
@@ -528,12 +563,14 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
       initialScale={1}
       minScale={0.2}
       maxScale={2}
-      wheel={{ step: 0.1 }}
+      // Reduced wheel step from 0.1 to 0.02 for smooth, gradual mouse wheel and trackpad scaling across min to max limits
+      wheel={{ step: 0.02, smoothStep: 0.002 }}
       panning={{ velocityDisabled: true }}
       centerZoomedOut={false}
       limitToBounds={false}
     >
       <div id="ladder-canvas-container" className="flex-1 bg-slate-950 overflow-hidden relative select-none h-full w-full">
+        <ZoomControlsOverlay />
 
         {contextMenuInfo && (
           <ContextMenu
