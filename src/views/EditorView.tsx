@@ -10,6 +10,8 @@ import { toast } from 'react-hot-toast';
 import { addElementToRung, createEmptyRung, deleteElementFromRungs, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
 import { FBDEditor } from '../components/fbd/FBDEditor';
 import { FBDDiagram, PLCVariable } from '../types';
+import { SaveMacroModal } from '../components/modals/SaveMacroModal';
+import { useStore } from '../store/useStore';
 import {
   Layers,
   Plus,
@@ -21,7 +23,8 @@ import {
   Play,
   Sparkles,
   Zap,
-  RotateCw
+  RotateCw,
+  BookmarkPlus
 } from 'lucide-react';
 
 interface EditorViewProps {
@@ -83,6 +86,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const [activeDragElement, setActiveDragElement] = useState<Partial<LadderElement> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [crossRefElement, setCrossRefElement] = useState<LadderElement | null>(null);
+
+  // Custom Macro creation state
+  const [isSaveMacroOpen, setIsSaveMacroOpen] = useState(false);
+  const addCustomMacro = useStore((state) => state.addCustomMacro);
 
   const isEditingSubroutine = activeSubroutineId !== null;
   const currentSubroutine = subroutines.find((s) => s.id === activeSubroutineId);
@@ -401,8 +408,20 @@ export const EditorView: React.FC<EditorViewProps> = ({
           })}
         </div>
 
-        {/* Action button: Go to Management / New Subroutine / Macros */}
+        {/* Action button: Go to Management / New Subroutine / Save Macro / Macros */}
         <div className="flex items-center gap-2 shrink-0">
+          {activeRungs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsSaveMacroOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 hover:text-amber-100 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Aktív/kijelölt létrafok(ok) elmentése saját makróként"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5 text-amber-400" />
+              <span>Fok Mentése Makróként</span>
+            </button>
+          )}
+
           {onOpenMacros && (
             <button
               type="button"
@@ -632,6 +651,25 @@ export const EditorView: React.FC<EditorViewProps> = ({
           }}
         />
       )}
+
+      {/* Save Macro Modal */}
+      <SaveMacroModal
+        isOpen={isSaveMacroOpen}
+        selectedRungs={
+          selectedRungIndex >= 0 && selectedRungIndex < activeRungs.length
+            ? [activeRungs[selectedRungIndex]]
+            : activeRungs.slice(0, 1)
+        }
+        onClose={() => setIsSaveMacroOpen(false)}
+        onSave={(name, category, description) => {
+          const rungsToSave =
+            selectedRungIndex >= 0 && selectedRungIndex < activeRungs.length
+              ? [activeRungs[selectedRungIndex]]
+              : activeRungs;
+          addCustomMacro(name, category, description, rungsToSave);
+          toast.success(`Makró "${name}" sikeresen elmentve!`);
+        }}
+      />
     </div>
   );
 };

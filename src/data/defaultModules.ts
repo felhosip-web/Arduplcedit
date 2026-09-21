@@ -476,6 +476,114 @@ export const DEFAULT_MODULE_TEMPLATES: CustomModuleTemplate[] = [
     isBuiltIn: true
   },
   // -----------------------------------------------------------------
+  // Program Control Flow (JMP, LBL)
+  // -----------------------------------------------------------------
+  {
+    id: 'mod_jmp',
+    name: 'JMP (Ugrás Címkére)',
+    symbol: '[JMP]',
+    category: 'variable_op',
+    type: 'JMP',
+    description: 'Ha a fok áramot vezet, átugorja a köztes fokokat a megadott LBL címkéig ebben a ciklusban.',
+    labelName: 'LBL_SKIP',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_lbl',
+    name: 'LBL (Ugrási Címke)',
+    symbol: '[LBL]',
+    category: 'variable_op',
+    type: 'LBL',
+    description: 'Ugrási célpont jelölő a létrán a JMP utasítás számára.',
+    labelName: 'LBL_SKIP',
+    isBuiltIn: true
+  },
+  // -----------------------------------------------------------------
+  // Word & Bit Operations (MOV, WAND, WOR, WXOR, WNOT, SHL, SHR)
+  // -----------------------------------------------------------------
+  {
+    id: 'mod_mov',
+    name: 'MOV (Adat / Regiszter Másolás)',
+    symbol: '[MOV]',
+    category: 'variable_op',
+    type: 'MOV',
+    description: 'Adat vagy érték átmásolása forrásból a célváltozóba (dest := source).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_SRC',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_wand',
+    name: 'WAND (Bitenkénti És / AND)',
+    symbol: '[WAND]',
+    category: 'variable_op',
+    type: 'WAND',
+    description: 'Bitenkénti És (AND) művelet két regiszter / változó között (dest := a & b).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_A',
+    operandB: 'V_B',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_wor',
+    name: 'WOR (Bitenkénti Vagy / OR)',
+    symbol: '[WOR]',
+    category: 'variable_op',
+    type: 'WOR',
+    description: 'Bitenkénti Vagy (OR) művelet két regiszter / változó között (dest := a | b).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_A',
+    operandB: 'V_B',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_wxor',
+    name: 'WXOR (Kizáró Vagy / XOR)',
+    symbol: '[WXOR]',
+    category: 'variable_op',
+    type: 'WXOR',
+    description: 'Bitenkénti Kizáró Vagy (XOR) művelet két regiszter / változó között (dest := a ^ b).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_A',
+    operandB: 'V_B',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_wnot',
+    name: 'WNOT (Bitenkénti Invertálás / NOT)',
+    symbol: '[WNOT]',
+    category: 'variable_op',
+    type: 'WNOT',
+    description: 'Bitenkénti NOT / Invertálás művelet (dest := ~a).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_A',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_shl',
+    name: 'SHL (Bit Léptetés Balra)',
+    symbol: '[SHL]',
+    category: 'variable_op',
+    type: 'SHL',
+    description: 'Bitek léptetése balra a megadott pozíciószámmal (dest := value << n).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_VAL',
+    shiftCount: 1,
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_shr',
+    name: 'SHR (Bit Léptetés Jobbra)',
+    symbol: '[SHR]',
+    category: 'variable_op',
+    type: 'SHR',
+    description: 'Bitek logikai léptetése jobbra a megadott pozíciószámmal (dest := value >> n).',
+    targetVariable: 'V_DEST',
+    sourceVariable: 'V_VAL',
+    shiftCount: 1,
+    isBuiltIn: true
+  },
+  // -----------------------------------------------------------------
   // BLKMOV Block Move / Memory Copy
   // -----------------------------------------------------------------
   {

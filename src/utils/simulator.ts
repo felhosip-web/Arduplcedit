@@ -24,6 +24,21 @@ import { estimateRungExecutionUs } from './diagnosticsCalculator';
 import { buildModbusQuery, calculateModbusCRC, bytesToHexString, getModbusFunctionName } from './modbusUtils';
 import { advanceTime, EvaluationContext, StateMachineModel } from './stateMachineCore';
 
+function resolveOperandVal(
+  operand: string | number | undefined,
+  variableValues: Record<string, number | boolean | string>
+): number {
+  if (operand === undefined || operand === '') return 0;
+  if (typeof operand === 'number') return operand;
+  if (variableValues[operand] !== undefined) {
+    const val = variableValues[operand];
+    if (typeof val === 'boolean') return val ? 1 : 0;
+    return Number(val) || 0;
+  }
+  if (!isNaN(Number(operand))) return Number(operand);
+  return 0;
+}
+
 function formatTimestamp(): string {
   const d = new Date();
   const m = String(d.getMinutes()).padStart(2, '0');
@@ -957,6 +972,46 @@ export function runSimulationStep(
           }
         }
       }
+      else if (coil.type === 'MOV') {
+        if (rungHasPower && !wasCoilActive) {
+          const targetVar = coil.targetVariable || coil.variable;
+          const srcKey = coil.sourceVariable || coil.assignExpression || coil.variable;
+          if (targetVar) {
+            let val: number | boolean | string = 0;
+            if (srcKey && nextVariableValues[srcKey] !== undefined) {
+              val = nextVariableValues[srcKey];
+            } else if (srcKey && !isNaN(Number(srcKey))) {
+              val = Number(srcKey);
+            } else if (srcKey) {
+              val = srcKey;
+            }
+            nextVariableValues[targetVar] = val;
+          }
+        }
+      }
+      else if (['WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR'].includes(coil.type)) {
+        if (rungHasPower && !wasCoilActive) {
+          const targetVar = coil.targetVariable || coil.variable;
+          const valA = resolveOperandVal(coil.sourceVariable || coil.variable, nextVariableValues);
+          const valB = resolveOperandVal(coil.operandB, nextVariableValues);
+          const shift = typeof coil.shiftCount === 'number'
+            ? coil.shiftCount
+            : resolveOperandVal(coil.shiftCount || coil.operandB, nextVariableValues);
+
+          if (targetVar) {
+            let res = 0;
+            switch (coil.type) {
+              case 'WAND': res = (valA & valB) >>> 0; break;
+              case 'WOR':  res = (valA | valB) >>> 0; break;
+              case 'WXOR': res = (valA ^ valB) >>> 0; break;
+              case 'WNOT': res = (~valA) & 0xFFFF; break;
+              case 'SHL':  res = (valA << shift) >>> 0; break;
+              case 'SHR':  res = (valA >>> shift); break;
+            }
+            nextVariableValues[targetVar] = res;
+          }
+        }
+      }
       // -----------------------------------------------------------------
       // Subroutine execution
       // -----------------------------------------------------------------
@@ -1727,11 +1782,45 @@ export function runSimulationStep(
   const rungTimesUs: Record<string, number> = {};
   let totalScanUs = 4.0; // Base loop() timer and scheduler overhead
 
-  for (const rung of rungs) {
+  let rungIdx = 0;
+  while (rungIdx < rungs.length) {
+    const rung = rungs[rungIdx];
     evaluateRung(rung, false);
     const rungTime = estimateRungExecutionUs(rung);
     rungTimesUs[rung.id] = rungTime;
     totalScanUs += rungTime;
+
+    // Check if rung evaluated to true and has an active JMP instruction
+    const isRungEnergized = !!activeRungs[rung.id];
+    let jumped = false;
+
+    if (isRungEnergized) {
+      for (const coil of rung.coils) {
+        if (coil.type === 'JMP' && coil.labelName) {
+          const targetName = coil.labelName;
+          // Find matching later LBL rung
+          for (let targetIdx = rungIdx + 1; targetIdx < rungs.length; targetIdx++) {
+            const candidateRung = rungs[targetIdx];
+            const hasMatchingLabel = candidateRung.coils.some(
+              (el) => el.type === 'LBL' && el.labelName === targetName
+            ) || candidateRung.branches.some((b) =>
+              b.elements.some((el) => el.type === 'LBL' && el.labelName === targetName)
+            );
+
+            if (hasMatchingLabel) {
+              rungIdx = targetIdx;
+              jumped = true;
+              break;
+            }
+          }
+          if (jumped) break;
+        }
+      }
+    }
+
+    if (!jumped) {
+      rungIdx++;
+    }
   }
 
   // 2.5 Evaluate FBD Diagrams

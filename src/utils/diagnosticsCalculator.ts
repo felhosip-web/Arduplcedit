@@ -147,6 +147,15 @@ export function estimateElementExecutionUs(element: LadderElement, clockFactor =
     case 'VAR_ASSIGN':
       baseUs = 18.0; // IEEE 754 software float math on 8-bit AVR
       break;
+    case 'MOV':
+    case 'WAND':
+    case 'WOR':
+    case 'WXOR':
+    case 'WNOT':
+    case 'SHL':
+    case 'SHR':
+      baseUs = 2.5; // Fast integer bitwise or shift operation
+      break;
     case 'FIFO_PUSH':
     case 'FIFO_POP':
     case 'LIFO_PUSH':

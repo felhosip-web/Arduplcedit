@@ -32,6 +32,16 @@ export type ElementType =
   | 'MATH_EXPR'            // Variable assignment or math calculation
   // Variables & Array operations
   | 'VAR_ASSIGN'           // Set variable or array element: V_COUNT = V_COUNT + 1
+  | 'MOV'                  // Move / Copy variable or constant: dest := source
+  | 'WAND'                 // Bitwise AND operation: dest := a & b
+  | 'WOR'                  // Bitwise OR operation: dest := a | b
+  | 'WXOR'                 // Bitwise XOR operation: dest := a ^ b
+  | 'WNOT'                 // Bitwise NOT operation: dest := ~a
+  | 'SHL'                  // Bit Shift Left: dest := value << n
+  | 'SHR'                  // Bit Shift Right: dest := value >> n
+  // Program Control Flow
+  | 'JMP'                  // Jump instruction: jump to label if rung is energized
+  | 'LBL'                  // Label marker: target for JMP instruction
   // FIFO / LIFO Queue & Stack Buffer Operations
   | 'FIFO_PUSH'            // Push item into array queue (First-In, First-Out)
   | 'FIFO_POP'             // Pop oldest item from array queue
@@ -116,6 +126,10 @@ export interface LadderElement {
   // Variables & Arrays params
   targetVariable?: string;  // Target variable name for assignment/reading
   assignExpression?: string;// e.g. "V_BATCH_COUNT + 1" or "RECIPE_SETPOINTS[0]"
+  sourceVariable?: string;  // Source variable or operand A for MOV / bitwise operations
+  operandB?: string;        // Operand B for bitwise operations (WAND, WOR, WXOR) or constant
+  shiftCount?: number | string; // Shift count or variable for SHL / SHR operations
+  labelName?: string;       // Label name for JMP / LBL control flow
   arrayName?: string;       // Array name for indexed reading/writing
   arrayIndex?: number | string; // Index number or variable name
   // Protocol params (Dallas, I2C, SPI, UART, NRF24, 24Cxxx)
@@ -864,6 +878,10 @@ export interface CustomModuleTemplate {
   uartMessage?: string;
   targetVariable?: string;
   assignExpression?: string;
+  sourceVariable?: string;
+  operandB?: string;
+  shiftCount?: number | string;
+  labelName?: string;
   compareOp?: CompareOperator;
   compareValue?: number;
   arrayName?: string;
@@ -950,6 +968,16 @@ export interface LadderMacro {
   buildRungs: (paramValues: Record<string, string>) => Rung[];
   codeExplanation?: string;
   isBuiltIn?: boolean;
+}
+
+export interface CustomLadderMacro {
+  id: string;
+  name: string;
+  category: 'custom' | string;
+  description?: string;
+  rungs: Rung[];             // Deep-cloned template rungs
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 
