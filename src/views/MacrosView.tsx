@@ -184,7 +184,7 @@ export const MacrosView: React.FC<MacrosViewProps> = ({
                 Ipari Létra Makrók és Sablonok
               </h2>
               <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-amber-950/80 text-amber-400 border border-amber-800/80">
-                PLC Circuit Templates
+                PLC Áramköri Sablonok
               </span>
             </div>
             <p className="text-xs text-slate-400">

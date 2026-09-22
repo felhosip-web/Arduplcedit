@@ -331,7 +331,7 @@ export const FBDCanvas: React.FC<FBDCanvasProps> = ({ fbd, variables = [], simul
               list="fbd-variables"
               value={singleSelectedBlock.properties?.variable || ''}
               onChange={(e) => updateBlockVariable(singleSelectedBlock.id, e.target.value)}
-              placeholder="E.g. I0, Q0, MyVar"
+              placeholder="pl. I0, Q0, SajatValtozo"
               className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
             />
             <datalist id="fbd-variables">

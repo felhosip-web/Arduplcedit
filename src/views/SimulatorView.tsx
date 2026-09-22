@@ -143,7 +143,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
             title="Összes bemenet, időzítő és kimenet visszaállítása alaphelyzetbe"
           >
             <RotateCcw className="w-4 h-4 text-amber-400" />
-            <span>Reset</span>
+            <span>Alaphelyzet</span>
           </button>
 
           {/* Live Status indicator */}

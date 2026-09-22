@@ -204,7 +204,7 @@ export const StateMachineVisualEditor: React.FC<VisualEditorProps> = ({
               </div>
             )}
             <span className="font-bold text-sm text-slate-100 truncate w-full text-center">{s.name}</span>
-            {isActive && <span className="text-[10px] text-emerald-400 font-bold uppercase mt-1">Active</span>}
+            {isActive && <span className="text-[10px] text-emerald-400 font-bold uppercase mt-1">Aktív</span>}
           </div>
         );
       })}
