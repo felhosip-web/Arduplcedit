@@ -205,7 +205,7 @@ export const HardwareMapModal: React.FC<HardwareMapModalProps> = ({
                   Hardver Lábkiosztási Térkép (Hardware Map)
                 </h2>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800">
-                  Visual Pinout & Conflict Guard
+                  Vizualizált Lábkiosztás & Ütközésvizsgáló
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -411,7 +411,7 @@ export const HardwareMapModal: React.FC<HardwareMapModalProps> = ({
               title="Bekötési dokumentáció letöltése (.md)"
             >
               <Download className="w-3.5 h-3.5 text-slate-400" />
-              <span>Export (.md)</span>
+              <span>Exportálás (.md)</span>
             </button>
           </div>
         </div>

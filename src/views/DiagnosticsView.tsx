@@ -199,7 +199,7 @@ ${tips.map((t) => `- [${t.type.toUpperCase()}] ${t.title}: ${t.description} -> J
                   PLC Diagnosztikai & Teljesítmény Központ
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                  REAL-TIME PROFILER
+                  VALÓS IDEJŰ PROFILER
                 </span>
               </div>
               <p className="text-xs text-slate-400">

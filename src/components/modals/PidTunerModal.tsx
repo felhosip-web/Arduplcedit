@@ -838,7 +838,7 @@ float kp = ${pidParams.kp}f, ki = ${pidParams.ki}f, kd = ${pidParams.kd}f, sp = 
                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-1.5 transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Reset
+                  Alaphelyzet
                 </button>
                 <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-[11px] font-mono">
                   {[0.5, 1, 2, 4].map((spd) => (

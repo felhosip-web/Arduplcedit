@@ -446,7 +446,7 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
           }`}
         >
           <Zap className="w-4 h-4" />
-          <span>Task Manager</span>
+          <span>Feladatkezelő</span>
         </button>
 
         <button

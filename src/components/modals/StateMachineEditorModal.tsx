@@ -47,7 +47,7 @@ export const StateMachineEditorModal: React.FC<StateMachineEditorModalProps> = (
         setTransitions([...stateMachine.transitions]);
       } else {
         setSmId(`sm_${Date.now()}`);
-        setSmName('New State Machine');
+        setSmName('Új Állapotgép');
         setStates([{ id: `st_${Date.now()}_init`, name: 'INIT', isInitial: true }]);
         setTransitions([]);
       }
@@ -315,7 +315,7 @@ export const StateMachineEditorModal: React.FC<StateMachineEditorModalProps> = (
                       >
                         {s.isInitial && <Play className="w-3 h-3 fill-current" />}
                       </button>
-                      <span className="font-bold text-sm text-slate-200">{s.name} {isActive && <span className="ml-2 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded uppercase">Active</span>}</span>
+                      <span className="font-bold text-sm text-slate-200">{s.name} {isActive && <span className="ml-2 text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 rounded uppercase">Aktív</span>}</span>
                     </div>
                     <button
                       onClick={() => handleDeleteState(s.id)}
@@ -340,7 +340,7 @@ export const StateMachineEditorModal: React.FC<StateMachineEditorModalProps> = (
               <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Honnan (From)</label>
+                    <label className="block text-[10px] text-slate-400 mb-1">Honnan</label>
                     <select
                       value={newTransFrom}
                       onChange={(e) => setNewTransFrom(e.target.value)}
@@ -351,7 +351,7 @@ export const StateMachineEditorModal: React.FC<StateMachineEditorModalProps> = (
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">Hová (To)</label>
+                    <label className="block text-[10px] text-slate-400 mb-1">Hová</label>
                     <select
                       value={newTransTo}
                       onChange={(e) => setNewTransTo(e.target.value)}
