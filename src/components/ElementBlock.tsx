@@ -70,6 +70,17 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
     return contactTypes.includes(element.type);
   }, [element.type]);
 
+  // Resolve current underlying signal state for contacts (pin, variable, or internal flag)
+  const isSignalActive = React.useMemo(() => {
+    if (!isSimulating || !isForceableContact) return false;
+    // Check timer or counter state first if element references one
+    const lookupKey = element.variable || resolvedVariable;
+    if (timerState) return timerState.isDone;
+    if (counterState) return counterState.isDone;
+    // We can inspect element pin / variable if available
+    return false;
+  }, [isSimulating, isForceableContact, timerState, counterState, element.variable, resolvedVariable]);
+
   const handleBlockClick = (e: React.MouseEvent) => {
     if (isSimulating && isForceableContact && onForceInput) {
       e.stopPropagation();

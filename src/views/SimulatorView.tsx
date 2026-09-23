@@ -600,8 +600,8 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                                     element={el}
                                     isActive={isElActive}
                                     isSimulating={simulationState.isRunning}
-                                    timerState={el.variable ? simulationState.timerStates[el.variable] : undefined}
-                                    counterState={el.variable ? simulationState.counterStates[el.variable] : undefined}
+                                    timerState={el.variable ? (simulationState.timerStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
+                                    counterState={el.variable ? (simulationState.counterStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                                     onSelect={() => {}}
                                     onDelete={() => {}}
                                     onForceInput={onForceInput}
@@ -626,10 +626,10 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                         <ElementBlock
                           key={c.id}
                           element={c}
-                          isActive={isCoilActive}
+                          isActive={simulationState.activeElements[c.id] ?? isCoilActive}
                           isSimulating={simulationState.isRunning}
-                          timerState={c.variable ? simulationState.timerStates[c.variable] : undefined}
-                          counterState={c.variable ? simulationState.counterStates[c.variable] : undefined}
+                          timerState={c.variable ? (simulationState.timerStates[c.variable] || (c.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === c.variable)?.[1] : undefined)) : undefined}
+                          counterState={c.variable ? (simulationState.counterStates[c.variable] || (c.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === c.variable)?.[1] : undefined)) : undefined}
                           onSelect={() => {}}
                           onDelete={() => {}}
                           onForceInput={onForceInput}

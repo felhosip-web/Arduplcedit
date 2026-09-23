@@ -536,14 +536,27 @@ export default function App() {
         }
       }
 
-      return {
+      const nextState: SimulationState = {
         ...prev,
         digitalInputs: nextDigitalInputs,
         internalFlags: nextInternalFlags,
         variableValues: nextVariableValues
       };
+
+      // Instantly evaluate simulation step (with 0 delta time to avoid jumping timers) so active elements/rungs update within 1 frame
+      return runSimulationStep(
+        simulationRungs,
+        nextState,
+        0,
+        subroutines,
+        setupRungs,
+        interrupts,
+        protocols,
+        stateMachines,
+        simulationFbdPrograms
+      );
     });
-  }, [simulationState.isRunning, variables]);
+  }, [simulationState.isRunning, variables, simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines, simulationFbdPrograms]);
 
   const handleSetDigitalInput = (pin: string, value: boolean) => {
     setSimulationState((prev) => ({

@@ -381,8 +381,8 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                         element={el}
                         isActive={simulationState.activeElements[el.id]}
                         isSimulating={simulationState.isRunning}
-                        timerState={el.variable ? simulationState.timerStates[el.variable] : undefined}
-                        counterState={el.variable ? simulationState.counterStates[el.variable] : undefined}
+                        timerState={el.variable ? (simulationState.timerStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
+                        counterState={el.variable ? (simulationState.counterStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                         onSelect={onSelectElement}
                         onDelete={onDeleteElement}
                         onTunePid={onTunePid}
@@ -441,10 +441,10 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
             <React.Fragment key={coil.id}>
               <ElementBlock
                 element={coil}
-                isActive={isRungEnergized}
+                isActive={simulationState.activeElements[coil.id] ?? isRungEnergized}
                 isSimulating={simulationState.isRunning}
-                timerState={coil.variable ? simulationState.timerStates[coil.variable] : undefined}
-                counterState={coil.variable ? simulationState.counterStates[coil.variable] : undefined}
+                timerState={coil.variable ? (simulationState.timerStates[coil.variable] || (coil.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === coil.variable)?.[1] : undefined)) : undefined}
+                counterState={coil.variable ? (simulationState.counterStates[coil.variable] || (coil.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === coil.variable)?.[1] : undefined)) : undefined}
                 onSelect={onSelectElement}
                 onDelete={onDeleteElement}
                 onTunePid={onTunePid}
