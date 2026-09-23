@@ -491,6 +491,73 @@ export default function App() {
     }));
   };
 
+  // Force ladder contact input state (pin, flag, or variable) during simulation
+  const handleForceInput = useCallback((element: LadderElement, targetValue?: boolean) => {
+    if (!simulationState.isRunning) return;
+
+    const contactTypes: string[] = ['NO_CONTACT', 'NC_CONTACT', 'RISING_EDGE', 'FALLING_EDGE', 'INTERNAL_FLAG_CONTACT'];
+    if (!contactTypes.includes(element.type)) return;
+
+    setSimulationState((prev) => {
+      const nextDigitalInputs = { ...prev.digitalInputs };
+      const nextInternalFlags = { ...prev.internalFlags };
+      const nextVariableValues = { ...prev.variableValues };
+
+      if (element.pin) {
+        const pin = element.pin;
+        const currentVal = !!nextDigitalInputs[pin];
+        const newVal = targetValue !== undefined ? targetValue : !currentVal;
+        nextDigitalInputs[pin] = newVal;
+      }
+
+      if (element.variable) {
+        let varName = element.variable;
+        if (varName.startsWith('var_')) {
+          const foundVar = variables.find((v) => v.id === varName);
+          if (foundVar) {
+            varName = foundVar.name;
+            if (foundVar.mappedPin) {
+              const currentPinVal = !!nextDigitalInputs[foundVar.mappedPin];
+              const newPinVal = targetValue !== undefined ? targetValue : !currentPinVal;
+              nextDigitalInputs[foundVar.mappedPin] = newPinVal;
+            }
+          }
+        }
+
+        if (varName.startsWith('M') && (nextInternalFlags[varName] !== undefined || /^M\d+$/.test(varName))) {
+          const currentVal = !!nextInternalFlags[varName];
+          nextInternalFlags[varName] = targetValue !== undefined ? targetValue : !currentVal;
+        } else if (nextVariableValues[varName] !== undefined || varName.startsWith('V_')) {
+          const currentVal = Boolean(nextVariableValues[varName]);
+          nextVariableValues[varName] = targetValue !== undefined ? targetValue : !currentVal;
+        } else {
+          const currentVal = !!nextInternalFlags[varName];
+          nextInternalFlags[varName] = targetValue !== undefined ? targetValue : !currentVal;
+        }
+      }
+
+      const nextState: SimulationState = {
+        ...prev,
+        digitalInputs: nextDigitalInputs,
+        internalFlags: nextInternalFlags,
+        variableValues: nextVariableValues
+      };
+
+      // Instantly evaluate simulation step (with 0 delta time to avoid jumping timers) so active elements/rungs update within 1 frame
+      return runSimulationStep(
+        simulationRungs,
+        nextState,
+        0,
+        subroutines,
+        setupRungs,
+        interrupts,
+        protocols,
+        stateMachines,
+        simulationFbdPrograms
+      );
+    });
+  }, [simulationState.isRunning, variables, simulationRungs, subroutines, setupRungs, interrupts, protocols, stateMachines, simulationFbdPrograms]);
+
   const handleSetDigitalInput = (pin: string, value: boolean) => {
     setSimulationState((prev) => ({
       ...prev,
@@ -1212,6 +1279,7 @@ export default function App() {
           activeSubroutineId={activeSubroutineId}
           onSelectActiveSubroutine={setActiveSubroutineId}
           onUpdateActiveProgramFBD={handleUpdateEffectiveFBD}
+          onForceInput={handleForceInput}
         />
       )}
 
@@ -1239,6 +1307,7 @@ export default function App() {
           onSyncRTC={handleSyncRTC}
           onClearLogs={handleClearLogs}
           onNavigateToDiagnostics={() => setActivePage('diagnostics')}
+          onForceInput={handleForceInput}
         />
       )}
 

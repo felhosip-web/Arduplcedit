@@ -27,6 +27,7 @@ interface SimulatorViewProps {
   onSyncRTC?: () => void;
   onClearLogs?: () => void;
   onNavigateToDiagnostics?: () => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
 }
 
 export const SimulatorView: React.FC<SimulatorViewProps> = ({
@@ -51,7 +52,8 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   onSimulateSDLog,
   onSyncRTC,
   onClearLogs,
-  onNavigateToDiagnostics
+  onNavigateToDiagnostics,
+  onForceInput
 }) => {
   // Input button modes: toggle (switch) or momentary (pushbutton)
   const [inputModes, setInputModes] = useState<Record<string, 'push' | 'toggle'>>({
@@ -598,10 +600,11 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                                     element={el}
                                     isActive={isElActive}
                                     isSimulating={simulationState.isRunning}
-                                    timerState={el.variable ? simulationState.timerStates[el.variable] : undefined}
-                                    counterState={el.variable ? simulationState.counterStates[el.variable] : undefined}
+                                    timerState={el.variable ? (simulationState.timerStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
+                                    counterState={el.variable ? (simulationState.counterStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                                     onSelect={() => {}}
                                     onDelete={() => {}}
+                                    onForceInput={onForceInput}
                                   />
                                   <div className={`h-0.5 w-4 ${isElActive ? 'bg-emerald-400' : 'bg-slate-700'}`} />
                                 </div>
@@ -623,12 +626,13 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                         <ElementBlock
                           key={c.id}
                           element={c}
-                          isActive={isCoilActive}
+                          isActive={simulationState.activeElements[c.id] ?? isCoilActive}
                           isSimulating={simulationState.isRunning}
-                          timerState={c.variable ? simulationState.timerStates[c.variable] : undefined}
-                          counterState={c.variable ? simulationState.counterStates[c.variable] : undefined}
+                          timerState={c.variable ? (simulationState.timerStates[c.variable] || (c.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === c.variable)?.[1] : undefined)) : undefined}
+                          counterState={c.variable ? (simulationState.counterStates[c.variable] || (c.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === c.variable)?.[1] : undefined)) : undefined}
                           onSelect={() => {}}
                           onDelete={() => {}}
+                          onForceInput={onForceInput}
                         />
                       );
                     })}

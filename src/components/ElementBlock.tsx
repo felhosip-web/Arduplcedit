@@ -13,6 +13,7 @@ interface ElementBlockProps {
   onDelete: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
   searchQuery?: string;
 }
 
@@ -26,6 +27,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   onDelete,
   onTunePid,
   onContextMenu,
+  onForceInput,
   searchQuery
 }) => {
   const isPassing = isSimulating && isActive;
@@ -62,6 +64,31 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
 
   const resolvedVariable = resolveVariableName(element.variable);
   const resolvedTargetVar = resolveVariableName(element.targetVariable);
+
+  const isForceableContact = React.useMemo(() => {
+    const contactTypes: string[] = ['NO_CONTACT', 'NC_CONTACT', 'RISING_EDGE', 'FALLING_EDGE', 'INTERNAL_FLAG_CONTACT'];
+    return contactTypes.includes(element.type);
+  }, [element.type]);
+
+  // Resolve current underlying signal state for contacts (pin, variable, or internal flag)
+  const isSignalActive = React.useMemo(() => {
+    if (!isSimulating || !isForceableContact) return false;
+    // Check timer or counter state first if element references one
+    const lookupKey = element.variable || resolvedVariable;
+    if (timerState) return timerState.isDone;
+    if (counterState) return counterState.isDone;
+    // We can inspect element pin / variable if available
+    return false;
+  }, [isSimulating, isForceableContact, timerState, counterState, element.variable, resolvedVariable]);
+
+  const handleBlockClick = (e: React.MouseEvent) => {
+    if (isSimulating && isForceableContact && onForceInput) {
+      e.stopPropagation();
+      onForceInput(element);
+    } else {
+      onSelect(element);
+    }
+  };
 
   // Render authentic PLC visual symbol based on element type
   const renderSymbol = () => {
@@ -955,13 +982,15 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
 
   return (
     <div
-      onClick={() => onSelect(element)}
+      onClick={handleBlockClick}
       onContextMenu={onContextMenu}
       className={`group relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all cursor-pointer select-none ${
         isMatch
           ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] z-10'
           : isPassing
             ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+            : isSimulating && isForceableContact
+            ? 'bg-slate-900/90 border-slate-700/80 hover:border-sky-400 hover:bg-sky-950/30 hover:ring-1 hover:ring-sky-400/50'
             : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-500 hover:bg-slate-800/80'
       }`}
     >
@@ -996,10 +1025,41 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
         )}
       </div>
 
+      {/* Quick Force On/Off Controls Popover during Simulation */}
+      {isSimulating && isForceableContact && (
+        <div className="absolute -top-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-slate-900 border border-sky-500/80 rounded-md shadow-lg p-0.5 z-30 pointer-events-auto">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onForceInput?.(element, true);
+            }}
+            className="px-1.5 py-0.5 text-[9px] font-bold font-mono rounded bg-emerald-950 text-emerald-300 border border-emerald-700/80 hover:bg-emerald-500 hover:text-slate-950 transition-colors"
+            title="Kényszerítés: BE"
+          >
+            Be
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onForceInput?.(element, false);
+            }}
+            className="px-1.5 py-0.5 text-[9px] font-bold font-mono rounded bg-slate-800 text-slate-300 border border-slate-700 hover:bg-rose-950 hover:text-rose-300 hover:border-rose-700 transition-colors"
+            title="Kényszerítés: KI"
+          >
+            Ki
+          </button>
+        </div>
+      )}
+
       {/* Detailed Tooltip on Hover */}
       <div className="hidden group-hover:block absolute top-full mt-2 left-1/2 -translate-x-1/2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 p-3 text-left pointer-events-none">
-        <div className="text-xs font-bold text-sky-400 border-b border-slate-700 pb-1 mb-1 truncate">
-          {element.name}
+        <div className="text-xs font-bold text-sky-400 border-b border-slate-700 pb-1 mb-1 truncate flex justify-between items-center">
+          <span>{element.name}</span>
+          {isSimulating && isForceableContact && (
+            <span className="text-[9px] text-sky-300 font-mono font-normal">Kattints: Toggle</span>
+          )}
         </div>
         <div className="space-y-1 text-[10px] font-mono text-slate-300">
           <div className="flex justify-between">
@@ -1021,6 +1081,11 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
           {element.comment && (
             <div className="mt-1 pt-1 border-t border-slate-700/50 text-slate-400 italic font-sans whitespace-pre-wrap">
               {element.comment}
+            </div>
+          )}
+          {isSimulating && isForceableContact && (
+            <div className="mt-1 pt-1 border-t border-slate-700/50 text-sky-400 font-semibold text-[9px]">
+              ⚡ Kattints vagy használd a Be/Ki gombot a jel kényszerítéséhez!
             </div>
           )}
         </div>
