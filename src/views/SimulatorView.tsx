@@ -27,6 +27,7 @@ interface SimulatorViewProps {
   onSyncRTC?: () => void;
   onClearLogs?: () => void;
   onNavigateToDiagnostics?: () => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
 }
 
 export const SimulatorView: React.FC<SimulatorViewProps> = ({
@@ -51,7 +52,8 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   onSimulateSDLog,
   onSyncRTC,
   onClearLogs,
-  onNavigateToDiagnostics
+  onNavigateToDiagnostics,
+  onForceInput
 }) => {
   // Input button modes: toggle (switch) or momentary (pushbutton)
   const [inputModes, setInputModes] = useState<Record<string, 'push' | 'toggle'>>({
@@ -602,6 +604,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                                     counterState={el.variable ? simulationState.counterStates[el.variable] : undefined}
                                     onSelect={() => {}}
                                     onDelete={() => {}}
+                                    onForceInput={onForceInput}
                                   />
                                   <div className={`h-0.5 w-4 ${isElActive ? 'bg-emerald-400' : 'bg-slate-700'}`} />
                                 </div>
@@ -629,6 +632,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                           counterState={c.variable ? simulationState.counterStates[c.variable] : undefined}
                           onSelect={() => {}}
                           onDelete={() => {}}
+                          onForceInput={onForceInput}
                         />
                       );
                     })}

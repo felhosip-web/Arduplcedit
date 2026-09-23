@@ -79,6 +79,7 @@ interface LadderCanvasProps {
   onDropElementOnCoils: (rungId: string, index: number, elementData: Partial<LadderElement>) => void;
   onTunePid?: (el: LadderElement) => void;
   onCrossReference?: (el: LadderElement) => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
 }
 
 // --- Inner Memoized Component for each Rung (Virtualization/Memoization) ---
@@ -86,6 +87,7 @@ interface RungRowProps {
   rung: Rung;
   rIndex: number;
   isSelected: boolean;
+  searchQuery?: string;
   simulationState: SimulationState;
   isSetupSection: boolean;
   validationErrors: ValidationError[];
@@ -105,6 +107,7 @@ interface RungRowProps {
   onDeleteRung: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
   onCrossReference?: (el: LadderElement) => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
   totalRungsCount: number;
   onContextMenuOpen: (e: React.MouseEvent, element: LadderElement) => void;
 }
@@ -133,6 +136,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   onDeleteRung,
   onTunePid,
   onCrossReference,
+  onForceInput,
   totalRungsCount,
   onContextMenuOpen
 }) => {
@@ -383,6 +387,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                         onDelete={onDeleteElement}
                         onTunePid={onTunePid}
                         onContextMenu={(e) => onContextMenuOpen(e, el)}
+                        onForceInput={onForceInput}
                         searchQuery={searchQuery}
                       />
 
@@ -444,6 +449,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 onDelete={onDeleteElement}
                 onTunePid={onTunePid}
                 onContextMenu={(e) => onContextMenuOpen(e, coil)}
+                onForceInput={onForceInput}
                 searchQuery={searchQuery}
               />
 
@@ -495,7 +501,8 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   onDropElementOnBranch,
   onDropElementOnCoils,
   onTunePid,
-  onCrossReference
+  onCrossReference,
+  onForceInput
 }) => {
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const dragTargetRef = useRef<string | null>(null);
@@ -662,6 +669,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                 onDeleteRung={onDeleteRung}
                 onTunePid={onTunePid}
                 onCrossReference={onCrossReference}
+                onForceInput={onForceInput}
                 totalRungsCount={rungs.length}
                 onContextMenuOpen={handleContextMenuOpen}
               />

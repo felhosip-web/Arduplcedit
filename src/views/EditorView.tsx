@@ -55,6 +55,7 @@ interface EditorViewProps {
   activeSubroutineId: string | null;
   onSelectActiveSubroutine: (id: string | null) => void;
   onUpdateActiveProgramFBD?: (fbd: FBDDiagram) => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
 }
 
 export const EditorView: React.FC<EditorViewProps> = ({
@@ -78,7 +79,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
   onOpenMacros,
   activeSubroutineId,
   onSelectActiveSubroutine,
-  onUpdateActiveProgramFBD
+  onUpdateActiveProgramFBD,
+  onForceInput
 }) => {
   // Active Section for Main Program: 'loop' (cyclic scan) or 'setup' (one-time boot)
   const [currentSection, setCurrentSection] = useState<'loop' | 'setup'>('loop');
@@ -604,18 +606,19 @@ export const EditorView: React.FC<EditorViewProps> = ({
                 selectedRungIndex={selectedRungIndex}
                 isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
                 onSelectRung={onSelectRung}
-              onSelectElement={onSelectElement}
-              onDeleteElement={handleDeleteElement}
-              onAddRung={handleAddRung}
-              onDeleteRung={handleDeleteRung}
-              onDuplicateRung={handleDuplicateRung}
-              onMoveRung={handleMoveRung}
-              onUpdateRungComment={handleUpdateRungComment}
-              onAddParallelBranch={handleAddParallelBranch}
+                onSelectElement={onSelectElement}
+                onDeleteElement={handleDeleteElement}
+                onAddRung={handleAddRung}
+                onDeleteRung={handleDeleteRung}
+                onDuplicateRung={handleDuplicateRung}
+                onMoveRung={handleMoveRung}
+                onUpdateRungComment={handleUpdateRungComment}
+                onAddParallelBranch={handleAddParallelBranch}
                 onDeleteParallelBranch={handleDeleteParallelBranch}
                 onDropElementOnBranch={handleDropElementOnBranch}
                 onDropElementOnCoils={handleDropElementOnCoils}
                 onCrossReference={(el) => setCrossRefElement(el)}
+                onForceInput={onForceInput}
               />
             </div>
           </div>
