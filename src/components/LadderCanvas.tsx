@@ -3,7 +3,7 @@ import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
 import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { validateRungs, ValidationError } from '../utils/validationUtils';
-import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
+import { TransformWrapper, TransformComponent, useControls, useTransformComponent } from 'react-zoom-pan-pinch';
 import { ContextMenu } from './ContextMenu';
 import { useDroppable } from '@dnd-kit/core';
 import { useStore } from '../store/useStore';
@@ -27,9 +27,18 @@ const DroppableZone = ({ id, children, className }: any) => {
 // Zoom control buttons overlay using react-zoom-pan-pinch controls
 const ZoomControlsOverlay: React.FC = () => {
   const { zoomIn, zoomOut, resetTransform } = useControls();
+  const scale = useTransformComponent(({ state }) => state.scale);
+  const scalePercent = Math.round(scale * 100);
 
   return (
-    <div className="absolute top-4 right-4 z-40 flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg shadow-xl backdrop-blur-sm">
+    <div className="absolute top-4 right-4 z-40 flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg shadow-xl backdrop-blur-sm text-xs text-slate-300">
+      <span className="text-[11px] font-mono text-slate-400 px-1 border-r border-slate-800 select-none">
+        Ctrl + görgő: zoom
+      </span>
+      <span className="font-mono text-xs text-sky-400 font-bold min-w-[3.5rem] text-center select-none">
+        {scalePercent}%
+      </span>
+      <div className="w-px h-4 bg-slate-800 mx-0.5" />
       <button
         type="button"
         onClick={() => zoomIn(0.1)}
@@ -55,6 +64,55 @@ const ZoomControlsOverlay: React.FC = () => {
       >
         <RotateCcw className="w-4 h-4" />
       </button>
+    </div>
+  );
+};
+
+// Wheel zoom container wrapper enforcing Ctrl+wheel fine-grained zoom
+const CanvasWheelHandler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { zoomToPoint, instance } = useControls();
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only zoom when Ctrl or Cmd key is pressed
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentScale = instance.state.scale;
+        // Fine-grained scale adjustment factor clamped to +/-0.08 per wheel tick
+        const deltaFactor = -e.deltaY * 0.001;
+        const clampedDeltaFactor = Math.min(0.08, Math.max(-0.08, deltaFactor));
+        const factor = 1 + clampedDeltaFactor;
+
+        const minScale = instance.setup.minScale ?? 0.2;
+        const maxScale = instance.setup.maxScale ?? 2.0;
+
+        const targetScale = Math.min(maxScale, Math.max(minScale, currentScale * factor));
+
+        if (Math.abs(targetScale - currentScale) > 0.0001) {
+          zoomToPoint(targetScale, e.clientX, e.clientY, 0);
+        }
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [zoomToPoint, instance]);
+
+  return (
+    <div
+      ref={containerRef}
+      id="ladder-canvas-container"
+      className="flex-1 bg-slate-950 overflow-hidden relative select-none h-full w-full"
+    >
+      {children}
     </div>
   );
 };
@@ -570,13 +628,12 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
       initialScale={1}
       minScale={0.2}
       maxScale={2}
-      // Reduced wheel step from 0.1 to 0.02 for smooth, gradual mouse wheel and trackpad scaling across min to max limits
-      wheel={{ step: 0.02, smoothStep: 0.002 }}
+      wheel={{ disabled: true }}
       panning={{ velocityDisabled: true }}
       centerZoomedOut={false}
       limitToBounds={false}
     >
-      <div id="ladder-canvas-container" className="flex-1 bg-slate-950 overflow-hidden relative select-none h-full w-full">
+      <CanvasWheelHandler>
         <ZoomControlsOverlay />
 
         {contextMenuInfo && (
@@ -604,78 +661,78 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }} contentStyle={{ width: '100%', minHeight: '100%', padding: '24px' }}>
           <div className="max-w-5xl mx-auto relative z-10 pb-16 w-full">
             {/* Top Power Rail Legend */}
-        <div className="flex justify-between items-center px-4 mb-4 text-xs font-mono font-bold">
-          <div className="flex items-center gap-2 text-rose-400">
-            <span className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-            <span>+24V / +5V (TÁPVONAL - LIVE RAIL)</span>
-          </div>
-          <div className={`px-2.5 py-1 rounded text-[11px] font-sans font-bold flex items-center gap-1.5 ${
-            isSetupSection
-              ? 'bg-amber-950/80 text-amber-300 border border-amber-800/80'
-              : 'text-slate-400'
-          }`}>
-            {isSetupSection ? (
-              <span>⚡ SETUP SZAKASZ (Egyszer lefutó bekapcsolási inicializálás)</span>
-            ) : (
-              <span>🔄 LOOP SZAKASZ (Ciklikus 50 Hz PLC Scan)</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-sky-400">
-            <span>(NULLAVONAL - GND RAIL) 0V</span>
-            <span className="w-3 h-3 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
-          </div>
-        </div>
-
-        {/* Rungs Container */}
-        <div className="relative border-l-4 border-r-4 border-l-rose-500 border-r-sky-500 bg-slate-900/40 rounded-lg p-4 space-y-6 shadow-2xl">
-          {rungs.length === 0 ? (
-            <div className="py-12 px-4 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-                <Plus className="w-6 h-6" />
+            <div className="flex justify-between items-center px-4 mb-4 text-xs font-mono font-bold">
+              <div className="flex items-center gap-2 text-rose-400">
+                <span className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
+                <span>+24V / +5V (TÁPVONAL - LIVE RAIL)</span>
               </div>
-              <h4 className="text-sm font-bold text-slate-200">
-                {isSetupSection ? 'Még nincs létrafok a setup() szakaszban' : 'Még nincs létrafok a loop() szakaszban'}
-              </h4>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                {isSetupSection
-                  ? 'A mikrokontroller bekapcsolásakor (setup()) egyszer lefutó létrákhoz kattints az "Új Létrafok Hozzáadása" gombra!'
-                  : 'Kattints az "Új Létrafok Hozzáadása" gombra vagy húzz be elemeket a bal oldali palettáról!'}
-              </p>
+              <div className={`px-2.5 py-1 rounded text-[11px] font-sans font-bold flex items-center gap-1.5 ${
+                isSetupSection
+                  ? 'bg-amber-950/80 text-amber-300 border border-amber-800/80'
+                  : 'text-slate-400'
+              }`}>
+                {isSetupSection ? (
+                  <span>⚡ SETUP SZAKASZ (Egyszer lefutó bekapcsolási inicializálás)</span>
+                ) : (
+                  <span>🔄 LOOP SZAKASZ (Ciklikus 50 Hz PLC Scan)</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-sky-400">
+                <span>(NULLAVONAL - GND RAIL) 0V</span>
+                <span className="w-3 h-3 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
+              </div>
             </div>
-          ) : (
-            rungs.map((rung, rIndex) => (
-              <RungRow
-                key={rung.id}
-                rung={rung}
-                rIndex={rIndex}
-                isSelected={selectedRungIndex === rIndex}
-            searchQuery={searchQuery}
-                simulationState={simulationState}
-                isSetupSection={isSetupSection}
-                validationErrors={validationErrors}
-                onSelectRung={onSelectRung}
-                onSelectElement={onSelectElement}
-                onDeleteElement={onDeleteElement}
-                onMoveRung={onMoveRung}
-                onUpdateRungComment={onUpdateRungComment}
-                onAddParallelBranch={onAddParallelBranch}
-                onDeleteParallelBranch={onDeleteParallelBranch}
-                onDropElementOnBranch={onDropElementOnBranch}
-                onDropElementOnCoils={onDropElementOnCoils}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                dragOverTarget={dragOverTarget}
-                onDuplicateRung={onDuplicateRung}
-                onDeleteRung={onDeleteRung}
-                onTunePid={onTunePid}
-                onCrossReference={onCrossReference}
-                onForceInput={onForceInput}
-                totalRungsCount={rungs.length}
-                onContextMenuOpen={handleContextMenuOpen}
-              />
-            ))
-        )}
-        </div>
+
+            {/* Rungs Container */}
+            <div className="relative border-l-4 border-r-4 border-l-rose-500 border-r-sky-500 bg-slate-900/40 rounded-lg p-4 space-y-6 shadow-2xl">
+              {rungs.length === 0 ? (
+                <div className="py-12 px-4 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-200">
+                    {isSetupSection ? 'Még nincs létrafok a setup() szakaszban' : 'Még nincs létrafok a loop() szakaszban'}
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    {isSetupSection
+                      ? 'A mikrokontroller bekapcsolásakor (setup()) egyszer lefutó létrákhoz kattints az "Új Létrafok Hozzáadása" gombra!'
+                      : 'Kattints az "Új Létrafok Hozzáadása" gombra vagy húzz be elemeket a bal oldali palettáról!'}
+                  </p>
+                </div>
+              ) : (
+                rungs.map((rung, rIndex) => (
+                  <RungRow
+                    key={rung.id}
+                    rung={rung}
+                    rIndex={rIndex}
+                    isSelected={selectedRungIndex === rIndex}
+                    searchQuery={searchQuery}
+                    simulationState={simulationState}
+                    isSetupSection={isSetupSection}
+                    validationErrors={validationErrors}
+                    onSelectRung={onSelectRung}
+                    onSelectElement={onSelectElement}
+                    onDeleteElement={onDeleteElement}
+                    onMoveRung={onMoveRung}
+                    onUpdateRungComment={onUpdateRungComment}
+                    onAddParallelBranch={onAddParallelBranch}
+                    onDeleteParallelBranch={onDeleteParallelBranch}
+                    onDropElementOnBranch={onDropElementOnBranch}
+                    onDropElementOnCoils={onDropElementOnCoils}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    dragOverTarget={dragOverTarget}
+                    onDuplicateRung={onDuplicateRung}
+                    onDeleteRung={onDeleteRung}
+                    onTunePid={onTunePid}
+                    onCrossReference={onCrossReference}
+                    onForceInput={onForceInput}
+                    totalRungsCount={rungs.length}
+                    onContextMenuOpen={handleContextMenuOpen}
+                  />
+                ))
+              )}
+            </div>
 
             {/* Add New Rung Button */}
             <div className="mt-6 flex justify-center">
@@ -690,7 +747,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
             </div>
           </div>
         </TransformComponent>
-      </div>
+      </CanvasWheelHandler>
     </TransformWrapper>
   );
 };

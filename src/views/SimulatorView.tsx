@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SimulationState, Rung, Subroutine, PLCConstant, PLCVariable, PLCArray, ProtocolConfigs } from '../types';
+import { SimulationState, Rung, Subroutine, PLCConstant, PLCVariable, PLCArray, ProtocolConfigs, LadderElement } from '../types';
 import { Play, Square, StepForward, RotateCcw, Activity, Gauge, Cpu, Radio, Sparkles, Sliders, Layers, Eye } from 'lucide-react';
 import { ElementBlock } from '../components/ElementBlock';
 import { ProtocolTelemetryPanel } from '../components/simulator/ProtocolTelemetryPanel';
