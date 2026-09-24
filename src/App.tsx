@@ -25,8 +25,8 @@ import { DEFAULT_SUBROUTINES } from './data/defaultSubroutines';
 import { DEFAULT_CUSTOM_MODULES } from './data/defaultModules';
 import { DEFAULT_CONSTANTS, DEFAULT_VARIABLES, DEFAULT_ARRAYS } from "./data/defaultVariables";
 import { SYSTEM_VARIABLES } from './data/systemVariables';
-import { DEFAULT_PROTOCOLS } from './data/defaultProtocols';
-import { DEFAULT_INTERRUPTS } from './data/defaultInterrupts';
+import { DEFAULT_PROTOCOLS, EMPTY_PROTOCOLS } from './data/defaultProtocols';
+import { DEFAULT_INTERRUPTS, EMPTY_INTERRUPTS } from './data/defaultInterrupts';
 import { DEFAULT_MACROS } from './data/defaultMacros';
 import { EXAMPLE_PROJECTS, ExampleProject } from './data/exampleProjects';
 import { generateArduinoCode } from './utils/codeGenerator';
@@ -380,7 +380,7 @@ export default function App() {
   // Arduino Libraries (Kept in local state for now)
   const [libraries, setLibraries] = useState<ArduinoLibrary[]>(() => {
     if (initialSavedState?.libraries) return initialSavedState.libraries;
-    return DEFAULT_LIBRARIES;
+    return DEFAULT_LIBRARIES.map((lib) => ({ ...lib, enabled: false }));
   });
 
   // Project Save & Load Modal
@@ -1171,11 +1171,12 @@ export default function App() {
         customMacros: []
       });
 
-      setConstants(DEFAULT_CONSTANTS);
-      setVariables([...SYSTEM_VARIABLES, ...DEFAULT_VARIABLES]);
-      setArrays(DEFAULT_ARRAYS);
-      setProtocols(DEFAULT_PROTOCOLS);
-      setInterrupts(DEFAULT_INTERRUPTS);
+      setConstants([]);
+      setVariables([...SYSTEM_VARIABLES]);
+      setArrays([]);
+      setProtocols(EMPTY_PROTOCOLS);
+      setInterrupts(EMPTY_INTERRUPTS);
+      setLibraries(DEFAULT_LIBRARIES.map((lib) => ({ ...lib, enabled: false })));
 
       handleResetSimulation();
       setActiveProgramId('prog_main');

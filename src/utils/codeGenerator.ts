@@ -90,14 +90,14 @@ export function generateArduinoCode(
   let usesDallas = protocols?.dallas?.enabled ?? false;
   let usesI2C = protocols?.i2c?.enabled ?? false;
   let usesSPI = protocols?.spi?.enabled ?? false;
-  let usesUART = protocols?.uart?.enabled ?? true;
+  let usesUART = protocols?.uart?.enabled ?? false;
   let usesNRF24 = protocols?.nrf24?.enabled ?? false;
   let uses24cEEPROM = protocols?.eeprom24c?.enabled ?? false;
   let usesRTC = protocols?.rtc?.enabled ?? false;
   let usesSD = protocols?.sdCard?.enabled ?? false;
   let usesModbus = protocols?.modbus?.enabled ?? false;
-  let usesWatchdog = protocols?.supervisor?.watchdog?.enabled ?? true;
-  let usesBrownout = protocols?.supervisor?.brownout?.enabled ?? true;
+  let usesWatchdog = protocols?.supervisor?.watchdog?.enabled ?? false;
+  let usesBrownout = protocols?.supervisor?.brownout?.enabled ?? false;
   let usesExpander = protocols?.expander?.enabled ?? false;
   let usesMCP23017 = false;
   let usesPCF8574 = false;
@@ -155,6 +155,7 @@ export function generateArduinoCode(
     }
     if (el.type.startsWith('MODBUS_')) {
       usesModbus = true;
+      usesUART = true;
     }
     if (el.type === 'WDT_RESET') {
       usesWatchdog = true;
@@ -1891,20 +1892,22 @@ export function generateArduinoCode(
   lines.push('void setup() {');
   
   // 1. UART Soros port konfigurálása és boot banner
-  const baudRate = protocols?.uart?.baudRate || 115200;
-  const serialConfig = protocols?.uart?.serialConfig || 'SERIAL_8N1';
-  const uartTimeout = protocols?.uart?.timeoutMs ?? 100;
-  lines.push(`  Serial.begin(${baudRate}, ${serialConfig});`);
-  lines.push(`  Serial.setTimeout(${uartTimeout});`);
-  if (protocols?.uart?.printBootBanner ?? true) {
-    lines.push('  Serial.println(F("=================================================="));');
-    lines.push('  Serial.println(F("[PLC SETUP] Arduino PLC Ladder Rendszer Indítása"));');
-    lines.push(`  Serial.println(F("[PLC SETUP] Projekt: ${projectName}"));`);
-    lines.push('  Serial.println(F("=================================================="));');
-  } else {
-    lines.push('  Serial.println(F("[PLC] Arduino PLC Ladder Studio indítása..."));');
+  if (usesUART || usesModbus) {
+    const baudRate = protocols?.uart?.baudRate || 115200;
+    const serialConfig = protocols?.uart?.serialConfig || 'SERIAL_8N1';
+    const uartTimeout = protocols?.uart?.timeoutMs ?? 100;
+    lines.push(`  Serial.begin(${baudRate}, ${serialConfig});`);
+    lines.push(`  Serial.setTimeout(${uartTimeout});`);
+    if (protocols?.uart?.printBootBanner ?? true) {
+      lines.push('  Serial.println(F("=================================================="));');
+      lines.push('  Serial.println(F("[PLC SETUP] Arduino PLC Ladder Rendszer Indítása"));');
+      lines.push(`  Serial.println(F("[PLC SETUP] Projekt: ${projectName}"));`);
+      lines.push('  Serial.println(F("=================================================="));');
+    } else {
+      lines.push('  Serial.println(F("[PLC] Arduino PLC Ladder Studio indítása..."));');
+    }
+    lines.push('');
   }
-  lines.push('');
 
   // 2. Hardver I/O Lábak Alapállapotba Helyezése
   inputPins.forEach(p => {

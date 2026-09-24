@@ -4,8 +4,8 @@ import { EXAMPLE_PROJECTS } from '../data/exampleProjects';
 import { DEFAULT_SUBROUTINES } from '../data/defaultSubroutines';
 import { DEFAULT_VARIABLES, DEFAULT_CONSTANTS, DEFAULT_ARRAYS } from '../data/defaultVariables';
 import { SYSTEM_VARIABLES } from '../data/systemVariables';
-import { DEFAULT_PROTOCOLS } from '../data/defaultProtocols';
-import { DEFAULT_INTERRUPTS } from '../data/defaultInterrupts';
+import { DEFAULT_PROTOCOLS, EMPTY_PROTOCOLS } from '../data/defaultProtocols';
+import { DEFAULT_INTERRUPTS, EMPTY_INTERRUPTS } from '../data/defaultInterrupts';
 import { addElementToRung, deleteElementFromRungs, createEmptyRung, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
 
 const INITIAL_SIMULATION_STATE: SimulationState = {
@@ -178,8 +178,8 @@ const initialLadderState: LadderState = {
   variables: initialSavedState?.variables?.length > 0 ? [...SYSTEM_VARIABLES, ...initialSavedState.variables.filter(v => !v.isSystem)] : [...SYSTEM_VARIABLES, ...DEFAULT_VARIABLES],
   constants: initialSavedState?.constants?.length > 0 ? initialSavedState.constants : DEFAULT_CONSTANTS,
   arrays: initialSavedState?.arrays?.length > 0 ? initialSavedState.arrays : DEFAULT_ARRAYS,
-  protocols: initialSavedState?.protocols ? { ...DEFAULT_PROTOCOLS, ...initialSavedState.protocols } : DEFAULT_PROTOCOLS,
-  interrupts: initialSavedState?.interrupts ? { ...DEFAULT_INTERRUPTS, ...initialSavedState.interrupts } : DEFAULT_INTERRUPTS,
+  protocols: initialSavedState?.protocols ? { ...EMPTY_PROTOCOLS, ...initialSavedState.protocols } : EMPTY_PROTOCOLS,
+  interrupts: initialSavedState?.interrupts ? { ...EMPTY_INTERRUPTS, ...initialSavedState.interrupts } : EMPTY_INTERRUPTS,
   customMacros: initialSavedState?.customMacros || [],
   tasks: initialSavedState?.tasks || [{
     id: 'task_main',
