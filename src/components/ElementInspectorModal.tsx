@@ -177,9 +177,93 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
             />
           </div>
 
+          {/* Internal Flag selection (M bits & SM special bits) */}
+          {(formData.type === 'INTERNAL_FLAG_CONTACT' || formData.type === 'INTERNAL_FLAG_COIL') && (
+            <div className="p-3.5 bg-amber-950/30 border border-amber-800/80 rounded-lg space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                  <HardDrive className="w-4 h-4" /> Belső flag (M bit) kiválasztása
+                </span>
+                {formData.variable && (
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-bold">
+                    Kiválasztva: {formData.variable}
+                  </span>
+                )}
+              </div>
+
+              {/* Standard M Bit Grid M0..M15 */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] text-slate-300 font-medium">
+                  Standard M Bitek (M0 - M15)
+                </label>
+                <div className="grid grid-cols-8 gap-1.5 p-2 bg-slate-950/60 rounded-lg border border-slate-800">
+                  {Array.from({ length: 16 }, (_, i) => `M${i}`).map((mBit) => (
+                    <button
+                      key={mBit}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, variable: mBit, pin: undefined })}
+                      className={`px-1.5 py-1 rounded text-xs font-mono font-medium border transition-colors ${
+                        formData.variable === mBit
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
+                      }`}
+                    >
+                      {mBit}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* System Special Bits (SM_*) */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] text-slate-300 font-medium">
+                  Rendszer bitek (SM Special Bits)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 p-2 bg-slate-950/60 rounded-lg border border-slate-800 max-h-40 overflow-y-auto">
+                  {variables
+                    .filter((v) => v.isSystem)
+                    .map((sysVar) => (
+                      <button
+                        key={sysVar.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, variable: sysVar.name, pin: undefined })}
+                        className={`p-2 rounded text-left text-xs border transition-colors flex flex-col justify-between ${
+                          formData.variable === sysVar.name
+                            ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                            : 'bg-slate-800/80 border-slate-700 hover:border-slate-600 text-slate-300'
+                        }`}
+                      >
+                        <span className="font-mono font-bold text-amber-300 text-[11px] truncate">
+                          {sysVar.name}
+                        </span>
+                        {sysVar.description && (
+                          <span className="text-[10px] text-slate-400 line-clamp-2 mt-0.5 leading-tight">
+                            {sysVar.description}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Custom M address / free-text variable input */}
+              <div className="pt-2 border-t border-amber-900/60 flex items-center gap-2">
+                <label className="text-xs text-slate-300 whitespace-nowrap">Egyedi M Cím / Változó:</label>
+                <input
+                  type="text"
+                  value={formData.variable || ''}
+                  onChange={(e) => setFormData({ ...formData, variable: e.target.value, pin: undefined })}
+                  placeholder="pl. M1002 vagy SM_CUSTOM"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
           {/* Pin selection (Arduino & I/O Expanders MCP23xxx / PCF8574) */}
-          {(formData.category === 'contact' ||
-            formData.category === 'coil' ||
+          {((formData.category === 'contact' && formData.type !== 'INTERNAL_FLAG_CONTACT') ||
+            (formData.category === 'coil' && formData.type !== 'INTERNAL_FLAG_COIL') ||
             formData.type === 'SERVO_WRITE' ||
             formData.type === 'DHT_READ' ||
             formData.type === 'PWM_OUT') && (
