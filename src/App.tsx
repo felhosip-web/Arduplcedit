@@ -1133,78 +1133,56 @@ export default function App() {
   };
 
   const handleResetProject = () => {
-    if (window.confirm('Biztosan törölni szeretnéd a projektet és új üres létrát kezdeni?')) {
+    if (window.confirm('A jelenlegi projekt törlődni fog. Biztosan új üres projektet szeretnél kezdeni?')) {
+      const blankMainRung: Rung = {
+        id: `rung_${Date.now()}`,
+        number: 0,
+        comment: '',
+        branches: [
+          {
+            id: `branch_${Date.now()}`,
+            elements: []
+          }
+        ],
+        coils: []
+      };
+
+      const freshTask: Task = {
+        id: 'task_main',
+        name: 'Main Task',
+        type: 'cyclic',
+        intervalMs: 10,
+        priority: 1,
+        programs: [
+          {
+            id: 'prog_main',
+            name: 'Main Program',
+            type: 'ladder',
+            rungs: [blankMainRung]
+          }
+        ]
+      };
+
       clearLadderHistory({
-        rungs: [
-          {
-            id: `rung_${Date.now()}`,
-            number: 0,
-            comment: '1. Fok: Indítás és Motor Vezérlés',
-            branches: [
-              {
-                id: `branch_${Date.now()}`,
-                elements: [
-                  {
-                    id: 'el_start',
-                    type: 'NO_CONTACT',
-                    category: 'contact',
-                    name: 'START_GOMB',
-                    pin: 'D2'
-                  }
-                ]
-              }
-            ],
-            coils: [
-              {
-                id: 'el_coil',
-                type: 'COIL_NORMAL',
-                category: 'coil',
-                name: 'MOTOR_RELE',
-                pin: 'D8'
-              }
-            ]
-          }
-        ],
-        setupRungs: [
-          {
-            id: `rung_setup_${Date.now()}`,
-            number: 0,
-            comment: 'Setup fok: Bekapcsolási inicializálás (egyszer fut le a setup()-ban)',
-            branches: [
-              {
-                id: `b_setup_${Date.now()}`,
-                elements: [
-                  {
-                    id: 'el_boot_init',
-                    type: 'NO_CONTACT',
-                    category: 'contact',
-                    name: 'SYS_BOOT',
-                    variable: 'V_AUTO_MODE'
-                  }
-                ]
-              }
-            ],
-            coils: [
-              {
-                id: 'el_boot_lcd',
-                type: 'LCD_PRINT',
-                category: 'library_module',
-                name: 'LCD BOOT',
-                lcdText: 'PLC BOOT READY'
-              }
-            ]
-          }
-        ],
-        subroutines: []
+        rungs: [blankMainRung],
+        setupRungs: [],
+        subroutines: [],
+        tasks: [freshTask],
+        customMacros: []
       });
+
       setConstants(DEFAULT_CONSTANTS);
       setVariables([...SYSTEM_VARIABLES, ...DEFAULT_VARIABLES]);
       setArrays(DEFAULT_ARRAYS);
       setProtocols(DEFAULT_PROTOCOLS);
       setInterrupts(DEFAULT_INTERRUPTS);
+
+      handleResetSimulation();
+      setActiveProgramId('prog_main');
       setSelectedRungIndex(0);
       setActiveSubroutineId(null);
       setActivePage('editor');
+      toast.success('Új üres projekt elindítva.');
     }
   };
 
