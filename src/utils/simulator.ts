@@ -469,6 +469,9 @@ export function runSimulationStep(
     }
 
     if (el.type === 'INTERNAL_FLAG_CONTACT' && el.variable) {
+      if (nextVariableValues[el.variable] !== undefined) {
+        return Boolean(nextVariableValues[el.variable]);
+      }
       return !!nextInternalFlags[el.variable];
     }
 
@@ -817,6 +820,9 @@ export function runSimulationStep(
         }
       } else if (coil.type === 'INTERNAL_FLAG_COIL' && coil.variable) {
         nextInternalFlags[coil.variable] = rungHasPower;
+        if (nextVariableValues[coil.variable] !== undefined) {
+          nextVariableValues[coil.variable] = rungHasPower;
+        }
       } else if (coil.type === 'TON' && coil.variable) {
         const preset = coil.presetMs || 1000;
         const currentTimer = nextTimerStates[coil.variable] || { currentMs: 0, isDone: false, isTiming: false };
