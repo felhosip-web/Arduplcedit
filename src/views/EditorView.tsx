@@ -9,6 +9,7 @@ import { ElementBlock } from '../components/ElementBlock';
 import { toast } from 'react-hot-toast';
 import { addElementToRung, createEmptyRung, deleteElementFromRungs, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
 import { isCoilOrModule } from '../utils/validationUtils';
+import { isModuleAllowedInSection } from '../utils/moduleSectionFilter';
 import { FBDEditor } from '../components/fbd/FBDEditor';
 import { FBDDiagram, PLCVariable } from '../types';
 import { SaveMacroModal } from '../components/modals/SaveMacroModal';
@@ -122,6 +123,14 @@ export const EditorView: React.FC<EditorViewProps> = ({
   // Add Element to the selected rung
   const handleAddElement = useCallback((template: Partial<LadderElement>) => {
     if (activeRungs.length === 0) return;
+
+    if (!isEditingSubroutine && currentSection === 'setup' && template.type && template.category) {
+      if (!isModuleAllowedInSection(template.type, template.category, 'setup')) {
+        toast.error(`A(z) ${template.name || template.type} (${template.type}) blokk csak a ciklikus loop() szakaszban használható!`);
+        return;
+      }
+    }
+
     const targetIdx = Math.min(selectedRungIndex, activeRungs.length - 1);
     const targetRung = activeRungs[targetIdx];
     const isCoil = isCoilOrModule(template.category, template.type);
@@ -130,7 +139,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
       return;
     }
     handleUpdateActiveRungs(addElementToRung(activeRungs, targetIdx, template));
-  }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs]);
+  }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs, isEditingSubroutine, currentSection]);
 
   const handleAddRung = useCallback(() => {
     const newRung = createEmptyRung(activeRungs.length, isEditingSubroutine);
@@ -279,6 +288,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    if (!isEditingSubroutine && currentSection === 'setup' && elementData.type && elementData.category) {
+      if (!isModuleAllowedInSection(elementData.type, elementData.category, 'setup')) {
+        toast.error(`A(z) ${elementData.name || elementData.type} (${elementData.type}) blokk csak a ciklikus loop() szakaszban használható!`);
+        return;
+      }
+    }
+
     // Prevent dropping coils or output modules into a contact branch
     if (isCoilOrModule(elementData.category, elementData.type)) {
       toast.error("Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
@@ -322,6 +338,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    if (!isEditingSubroutine && currentSection === 'setup' && elementData.type && elementData.category) {
+      if (!isModuleAllowedInSection(elementData.type, elementData.category, 'setup')) {
+        toast.error(`A(z) ${elementData.name || elementData.type} (${elementData.type}) blokk csak a ciklikus loop() szakaszban használható!`);
+        return;
+      }
+    }
+
     // Prevent dropping input contacts into the output (coil) area
     if (!isCoilOrModule(elementData.category, elementData.type)) {
       toast.error("Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
@@ -696,6 +719,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
               selectedRungIndex={selectedRungIndex}
               customModules={customModules}
               subroutines={subroutines}
+              section={!isEditingSubroutine ? currentSection : 'loop'}
               onOpenManagement={onOpenManagement}
             />
 
