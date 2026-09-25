@@ -89,6 +89,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const [activeDragElement, setActiveDragElement] = useState<Partial<LadderElement> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [crossRefElement, setCrossRefElement] = useState<LadderElement | null>(null);
+  const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
 
   // Custom Macro creation state
   const [isSaveMacroOpen, setIsSaveMacroOpen] = useState(false);
@@ -116,6 +117,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
       onUpdateMainRungs(newRungs);
     }
   }, [isEditingSubroutine, currentSubroutine, onUpdateSubroutine, currentSection, onUpdateSetupRungs, onUpdateMainRungs]);
+
 
   // Add Element to the selected rung
   const handleAddElement = useCallback((template: Partial<LadderElement>) => {
@@ -156,6 +158,89 @@ export const EditorView: React.FC<EditorViewProps> = ({
     if (newIdx !== -1) onSelectRung(newIdx);
   }, [activeRungs, handleUpdateActiveRungs, onSelectRung]);
 
+  // Keyboard shortcuts (Delete, Ctrl+D, Ctrl+Up/Down, Escape)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const activeTag = activeEl?.tagName?.toLowerCase();
+      const isEditable = activeEl?.getAttribute('contenteditable') === 'true';
+      const isInsideModal = !!activeEl?.closest('.fixed');
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select' || isEditable || isInsideModal || isSaveMacroOpen) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        setSelectedElementIds([]);
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedElementIds.length > 0) {
+          e.preventDefault();
+          let currentRungs = activeRungs;
+          selectedElementIds.forEach(elId => {
+            currentRungs = deleteElementFromRungs(currentRungs, elId);
+          });
+          handleUpdateActiveRungs(currentRungs);
+          setSelectedElementIds([]);
+          toast.success(`${selectedElementIds.length} elem törölve`);
+        } else if (selectedRungIndex >= 0 && selectedRungIndex < activeRungs.length && activeRungs.length > 1) {
+          e.preventDefault();
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleDeleteRung(targetRung.id);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (selectedRungIndex >= 0 && selectedRungIndex < activeRungs.length) {
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleDuplicateRung(targetRung.id);
+            toast.success(`Fok #${targetRung.number + 1} duplikálva`);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (selectedRungIndex > 0) {
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleMoveRung(targetRung.id, 'up');
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (selectedRungIndex < activeRungs.length - 1) {
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleMoveRung(targetRung.id, 'down');
+          }
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activeRungs,
+    selectedElementIds,
+    selectedRungIndex,
+    handleDeleteRung,
+    handleDuplicateRung,
+    handleMoveRung,
+    handleUpdateActiveRungs
+  ]);
+
   const handleUpdateRungComment = useCallback((id: string, comment: string) => {
     handleUpdateActiveRungs(activeRungs.map((r) => (r.id === id ? { ...r, comment } : r)));
   }, [activeRungs, handleUpdateActiveRungs]);
@@ -170,7 +255,23 @@ export const EditorView: React.FC<EditorViewProps> = ({
 
   const handleDeleteElement = useCallback((id: string) => {
     handleUpdateActiveRungs(deleteElementFromRungs(activeRungs, id));
+    setSelectedElementIds(prev => prev.filter(eId => eId !== id));
   }, [activeRungs, handleUpdateActiveRungs]);
+
+  const handleElementSelect = useCallback((el: LadderElement, e?: React.MouseEvent) => {
+    if (e && (e.ctrlKey || e.metaKey)) {
+      setSelectedElementIds(prev => {
+        if (prev.includes(el.id)) {
+          return prev.filter(id => id !== el.id);
+        } else {
+          return [...prev, el.id];
+        }
+      });
+    } else {
+      setSelectedElementIds([el.id]);
+      onSelectElement(el);
+    }
+  }, [onSelectElement]);
 
   const handleDropElementOnBranch = useCallback((
     rungId: string,
@@ -613,9 +714,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
                 searchQuery={searchQuery}
                 simulationState={simulationState}
                 selectedRungIndex={selectedRungIndex}
+                selectedElementIds={selectedElementIds}
                 isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
                 onSelectRung={onSelectRung}
-                onSelectElement={onSelectElement}
+                onSelectElement={handleElementSelect}
                 onDeleteElement={handleDeleteElement}
                 onAddRung={handleAddRung}
                 onDeleteRung={handleDeleteRung}

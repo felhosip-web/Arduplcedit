@@ -7,9 +7,10 @@ interface ElementBlockProps {
   element: LadderElement;
   isActive?: boolean;
   isSimulating?: boolean;
+  isSelected?: boolean;
   timerState?: { currentMs: number; isDone: boolean; isTiming: boolean };
   counterState?: { currentCount: number; isDone: boolean };
-  onSelect: (el: LadderElement) => void;
+  onSelect: (el: LadderElement, e?: React.MouseEvent) => void;
   onDelete: (id: string) => void;
   onTunePid?: (el: LadderElement) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -21,6 +22,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
   element,
   isActive,
   isSimulating,
+  isSelected,
   timerState,
   counterState,
   onSelect,
@@ -86,7 +88,7 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
       e.stopPropagation();
       onForceInput(element);
     } else {
-      onSelect(element);
+      onSelect(element, e);
     }
   };
 
@@ -1087,7 +1089,9 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
       onClick={handleBlockClick}
       onContextMenu={onContextMenu}
       className={`group relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all cursor-pointer select-none ${
-        isMatch
+        isSelected
+          ? 'bg-sky-950/60 border-sky-400 ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.5)] z-10'
+          : isMatch
           ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] z-10'
           : isPassing
             ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.2)]'

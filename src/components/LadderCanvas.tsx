@@ -121,10 +121,11 @@ interface LadderCanvasProps {
   rungs: Rung[];
   simulationState: SimulationState;
   selectedRungIndex: number;
+  selectedElementIds?: string[];
   searchQuery?: string;
   isSetupSection?: boolean;
   onSelectRung: (index: number) => void;
-  onSelectElement: (el: LadderElement) => void;
+  onSelectElement: (el: LadderElement, e?: React.MouseEvent) => void;
   onDeleteElement: (id: string) => void;
   onAddRung: () => void;
   onDeleteRung: (id: string) => void;
@@ -145,12 +146,13 @@ interface RungRowProps {
   rung: Rung;
   rIndex: number;
   isSelected: boolean;
+  selectedElementIds?: string[];
   searchQuery?: string;
   simulationState: SimulationState;
   isSetupSection: boolean;
   validationErrors: ValidationError[];
   onSelectRung: (index: number) => void;
-  onSelectElement: (el: LadderElement) => void;
+  onSelectElement: (el: LadderElement, e?: React.MouseEvent) => void;
   onDeleteElement: (id: string) => void;
   onMoveRung: (id: string, direction: 'up' | 'down') => void;
   onUpdateRungComment: (id: string, comment: string) => void;
@@ -174,6 +176,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   rung,
   rIndex,
   isSelected,
+  selectedElementIds = [],
   searchQuery,
   simulationState,
   isSetupSection,
@@ -412,7 +415,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
         </div>
 
         {/* Parallel Branches (Left / Contacts Section) */}
-        <div className={`relative flex flex-col gap-3 flex-1 min-w-[280px] ${rung.branches.length > 1 ? 'pr-7' : ''}`}>
+        <div className="relative flex flex-col gap-3 flex-1 min-w-[280px]">
           {/* Left Vertical Rail for OR logic */}
           {rung.branches.length > 1 && (
             <div
@@ -425,7 +428,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
           {/* Right Vertical Rail for OR logic */}
           {rung.branches.length > 1 && (
             <div
-              className={`absolute right-7 top-[22px] bottom-[22px] w-0.5 z-10 transition-colors ${
+              className={`absolute right-0 top-[22px] bottom-[22px] w-0.5 z-10 transition-colors ${
                 simulationState.isRunning && rung.branches.some(b => !!simulationState.activeBranches[b.id])
                   ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
                   : 'bg-slate-600'
@@ -459,6 +462,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                         element={el}
                         isActive={simulationState.activeElements[el.id]}
                         isSimulating={simulationState.isRunning}
+                        isSelected={selectedElementIds.includes(el.id)}
                         timerState={el.variable ? (simulationState.timerStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                         counterState={el.variable ? (simulationState.counterStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                         onSelect={onSelectElement}
@@ -500,7 +504,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => onDeleteParallelBranch(rung.id, branch.id)}
-                    className="ml-2 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px] shrink-0"
+                    className="ml-1 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px] shrink-0 z-20"
                     title="Párhuzamos ág törlése"
                   >
                     ✕
@@ -526,6 +530,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 element={coil}
                 isActive={simulationState.activeElements[coil.id] ?? isRungEnergized}
                 isSimulating={simulationState.isRunning}
+                isSelected={selectedElementIds.includes(coil.id)}
                 timerState={coil.variable ? (simulationState.timerStates[coil.variable] || (coil.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === coil.variable)?.[1] : undefined)) : undefined}
                 counterState={coil.variable ? (simulationState.counterStates[coil.variable] || (coil.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === coil.variable)?.[1] : undefined)) : undefined}
                 onSelect={onSelectElement}
@@ -575,6 +580,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   rungs,
   simulationState,
   selectedRungIndex,
+  selectedElementIds = [],
   searchQuery,
   isSetupSection = false,
   onSelectRung,
@@ -737,6 +743,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                     rung={rung}
                     rIndex={rIndex}
                     isSelected={selectedRungIndex === rIndex}
+                    selectedElementIds={selectedElementIds}
                     searchQuery={searchQuery}
                     simulationState={simulationState}
                     isSetupSection={isSetupSection}
