@@ -1,5 +1,125 @@
 import { ProtocolConfigs } from '../types';
 
+export const EMPTY_PROTOCOLS: ProtocolConfigs = {
+  dallas: {
+    enabled: false,
+    pin: 'D4',
+    resolution: 12,
+    waitForConversion: true,
+    requestOnBoot: true,
+    sensors: []
+  },
+  i2c: {
+    enabled: false,
+    sdaPin: 'A4',
+    sclPin: 'A5',
+    clockSpeedKhz: 100,
+    timeoutMs: 3000,
+    scanBusOnBoot: false,
+    devices: []
+  },
+  spi: {
+    enabled: false,
+    sckPin: 'D13',
+    misoPin: 'D12',
+    mosiPin: 'D11',
+    csPin: 'D10',
+    clockDivider: 'SPI_CLOCK_DIV4',
+    dataMode: 'SPI_MODE0',
+    bitOrder: 'MSBFIRST',
+    deselectCsPinsOnBoot: false,
+    devices: []
+  },
+  uart: {
+    enabled: false,
+    port: 'Serial',
+    baudRate: 115200,
+    serialConfig: 'SERIAL_8N1',
+    timeoutMs: 100,
+    printBootBanner: false,
+    rxPin: 'D0',
+    txPin: 'D1',
+    mode: 'DEBUG_MONITOR',
+    packetFormat: 'ASCII Telemetry'
+  },
+  nrf24: {
+    enabled: false,
+    cePin: 'D9',
+    csnPin: 'D10',
+    channel: 76,
+    dataRate: '1MBPS',
+    paLevel: 'RF24_PA_HIGH',
+    writingAddress: 'PLC01',
+    readingAddress: 'PLC02',
+    autoAck: true,
+    crcLength: '16-bit',
+    dynamicPayloads: true
+  },
+  eeprom24c: {
+    enabled: false,
+    chipType: '24C32',
+    addressHex: '0x50',
+    capacityBytes: 4096,
+    pageSizeBytes: 32,
+    addressBytes: 2,
+    writeCycleDelayMs: 5
+  },
+  rtc: {
+    enabled: false,
+    chipType: 'DS3231',
+    addressHex: '0x68',
+    syncIntervalSec: 1,
+    autoSyncCompileTime: false,
+    enableSquareWave1Hz: false
+  },
+  sdCard: {
+    enabled: false,
+    csPin: 'D10',
+    spiSpeed: 'SPI_HALF_SPEED',
+    logFileName: 'datalog.csv',
+    autoLogIntervalSec: 5,
+    autoCreateCsvHeader: false,
+    csvHeaderColumns: '',
+    logVariables: [],
+    detectCardOnBoot: false
+  },
+  modbus: {
+    enabled: false,
+    role: 'SLAVE',
+    slaveId: 1,
+    serialPort: 'Serial',
+    baudRate: 19200,
+    serialConfig: 'SERIAL_8E1',
+    deRePin: 'D2',
+    rxPin: 'D0',
+    txPin: 'D1',
+    timeoutMs: 500,
+    pollIntervalMs: 100,
+    holdingRegisterMappings: [],
+    coilMappings: []
+  },
+  supervisor: {
+    watchdog: {
+      enabled: false,
+      timeout: '2S',
+      autoResetEachScan: false
+    },
+    brownout: {
+      enabled: false,
+      level: '4.3V',
+      earlyPowerFailPin: 'D2',
+      saveRetentiveOnPowerFail: false
+    },
+    diagnostics: {
+      logResetReasonOnBoot: false
+    }
+  },
+  expander: {
+    enabled: false,
+    devices: []
+  }
+};
+
 export const DEFAULT_PROTOCOLS: ProtocolConfigs = {
   dallas: {
     enabled: true,

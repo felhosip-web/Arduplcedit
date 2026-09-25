@@ -1,5 +1,7 @@
 import { ArduinoLibrary } from '../types';
 
+export const MINIMAL_LIBRARIES: ArduinoLibrary[] = DEFAULT_LIBRARIES.map(lib => ({ ...lib, enabled: false }));
+
 export const DEFAULT_LIBRARIES: ArduinoLibrary[] = [
   {
     id: 'servo',
