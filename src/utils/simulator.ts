@@ -1052,7 +1052,7 @@ export function runSimulationStep(
           }
         }
       }
-      else if (['COMB_AND', 'COMB_OR', 'COMB_XOR', 'COMB_NOT'].includes(coil.type)) {
+      else if (['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(coil.type)) {
         const in1Val = resolveBoolInput(
           coil.sourceVariable,
           prevState,
@@ -1069,13 +1069,23 @@ export function runSimulationStep(
           nextExpanderInputs,
           nextExpanderOutputs
         );
+        const in3Val = resolveBoolInput(
+          coil.operandC,
+          prevState,
+          nextVariableValues,
+          nextInternalFlags,
+          nextExpanderInputs,
+          nextExpanderOutputs
+        );
 
         let gateOutput = false;
         switch (coil.type) {
-          case 'COMB_AND': gateOutput = in1Val && in2Val; break;
-          case 'COMB_OR':  gateOutput = in1Val || in2Val; break;
-          case 'COMB_XOR': gateOutput = in1Val !== in2Val; break;
-          case 'COMB_NOT': gateOutput = !in1Val; break;
+          case 'COMB_AND':  gateOutput = in1Val && in2Val; break;
+          case 'COMB_AND3': gateOutput = in1Val && in2Val && in3Val; break;
+          case 'COMB_OR':   gateOutput = in1Val || in2Val; break;
+          case 'COMB_OR3':  gateOutput = in1Val || in2Val || in3Val; break;
+          case 'COMB_XOR':  gateOutput = in1Val !== in2Val; break;
+          case 'COMB_NOT':  gateOutput = !in1Val; break;
         }
 
         activeElements[coil.id] = rungHasPower && gateOutput;

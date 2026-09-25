@@ -123,15 +123,17 @@ export function generateArduinoCode(
   let rs485DePin = protocols?.modbus?.deRePin?.replace('D', '') || '2';
 
   function analyzeElement(el: LadderElement) {
-    if (['COMB_AND', 'COMB_OR', 'COMB_XOR', 'COMB_NOT'].includes(el.type)) {
+    if (['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(el.type)) {
       if (el.sourceVariable && el.sourceVariable.startsWith('D')) inputPins.add(el.sourceVariable);
       if (el.operandB && el.operandB.startsWith('D')) inputPins.add(el.operandB);
+      if (el.operandC && el.operandC.startsWith('D')) inputPins.add(el.operandC);
       if (el.targetVariable && el.targetVariable.startsWith('D')) outputPins.add(el.targetVariable);
       if (el.variable && el.variable.startsWith('D')) outputPins.add(el.variable);
       if (el.pin && el.pin.startsWith('D')) outputPins.add(el.pin);
 
       if (el.sourceVariable && el.sourceVariable.startsWith('M')) internalFlags.add(el.sourceVariable);
       if (el.operandB && el.operandB.startsWith('M')) internalFlags.add(el.operandB);
+      if (el.operandC && el.operandC.startsWith('M')) internalFlags.add(el.operandC);
       if (el.targetVariable && el.targetVariable.startsWith('M')) internalFlags.add(el.targetVariable);
     }
 
@@ -1425,7 +1427,7 @@ export function generateArduinoCode(
         const src = coil.sourceVariable || coil.assignExpression || coil.variable || '0';
         out.push(`    ${target} = ${src};`);
         out.push('  }');
-      } else if (['COMB_AND', 'COMB_OR', 'COMB_XOR', 'COMB_NOT'].includes(coil.type)) {
+      } else if (['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(coil.type)) {
         const resolveExpr = (vName?: string) => {
           if (!vName || vName.trim() === '') return 'false';
           const v = vName.trim();
@@ -1451,9 +1453,12 @@ export function generateArduinoCode(
 
         const in1 = resolveExpr(coil.sourceVariable);
         const in2 = resolveExpr(coil.operandB);
+        const in3 = resolveExpr(coil.operandC);
         let expr = 'false';
         if (coil.type === 'COMB_AND') expr = `(${in1} && ${in2})`;
+        else if (coil.type === 'COMB_AND3') expr = `(${in1} && ${in2} && ${in3})`;
         else if (coil.type === 'COMB_OR') expr = `(${in1} || ${in2})`;
+        else if (coil.type === 'COMB_OR3') expr = `(${in1} || ${in2} || ${in3})`;
         else if (coil.type === 'COMB_XOR') expr = `(${in1} != ${in2})`;
         else if (coil.type === 'COMB_NOT') expr = `(!(${in1}))`;
 

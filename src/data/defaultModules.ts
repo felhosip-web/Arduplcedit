@@ -790,6 +790,19 @@ export const DEFAULT_MODULE_TEMPLATES: CustomModuleTemplate[] = [
     isBuiltIn: true
   },
   {
+    id: 'mod_comb_and3',
+    name: 'Logikai ÉS Kapu 3 Bemenet (AND3)',
+    symbol: '[& 3]',
+    category: 'library_module',
+    type: 'COMB_AND3',
+    description: 'Kombinációs logikai 3-bemenetű ÉS kapu: Ki = Be1 ÉS Be2 ÉS Be3.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    operandC: 'M2',
+    targetVariable: 'M3',
+    isBuiltIn: true
+  },
+  {
     id: 'mod_comb_or',
     name: 'Logikai VAGY Kapu (OR)',
     symbol: '[>=1]',
@@ -799,6 +812,19 @@ export const DEFAULT_MODULE_TEMPLATES: CustomModuleTemplate[] = [
     sourceVariable: 'M0',
     operandB: 'M1',
     targetVariable: 'M2',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_comb_or3',
+    name: 'Logikai VAGY Kapu 3 Bemenet (OR3)',
+    symbol: '[>=1 3]',
+    category: 'library_module',
+    type: 'COMB_OR3',
+    description: 'Kombinációs logikai 3-bemenetű VAGY kapu: Ki = Be1 VAGY Be2 VAGY Be3.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    operandC: 'M2',
+    targetVariable: 'M3',
     isBuiltIn: true
   },
   {

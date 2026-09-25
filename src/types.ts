@@ -98,7 +98,9 @@ export type ElementType =
   | 'PID_CONTROLLER'       // Instruction: Closed-loop PID Controller block
   // Combinational Logic Gate Modules
   | 'COMB_AND'             // Combinational AND Gate Module (In1 AND In2)
+  | 'COMB_AND3'            // Combinational 3-input AND Gate Module (In1 AND In2 AND In3)
   | 'COMB_OR'              // Combinational OR Gate Module (In1 OR In2)
+  | 'COMB_OR3'             // Combinational 3-input OR Gate Module (In1 OR In2 OR In3)
   | 'COMB_XOR'             // Combinational XOR Gate Module (In1 XOR In2)
   | 'COMB_NOT'             // Combinational NOT Inverter Gate Module (NOT In1)
   // Subroutines & Custom
@@ -133,6 +135,7 @@ export interface LadderElement {
   assignExpression?: string;// e.g. "V_BATCH_COUNT + 1" or "RECIPE_SETPOINTS[0]"
   sourceVariable?: string;  // Source variable or operand A for MOV / bitwise operations
   operandB?: string;        // Operand B for bitwise operations (WAND, WOR, WXOR) or constant
+  operandC?: string;        // Operand C for 3-input combinational logic gates (COMB_AND3, COMB_OR3)
   shiftCount?: number | string; // Shift count or variable for SHL / SHR operations
   labelName?: string;       // Label name for JMP / LBL control flow
   arrayName?: string;       // Array name for indexed reading/writing
@@ -885,6 +888,7 @@ export interface CustomModuleTemplate {
   assignExpression?: string;
   sourceVariable?: string;
   operandB?: string;
+  operandC?: string;
   shiftCount?: number | string;
   labelName?: string;
   compareOp?: CompareOperator;
