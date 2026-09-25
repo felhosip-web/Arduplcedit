@@ -8,6 +8,8 @@ import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { ElementBlock } from '../components/ElementBlock';
 import { toast } from 'react-hot-toast';
 import { addElementToRung, createEmptyRung, deleteElementFromRungs, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
+import { isCoilOrModule } from '../utils/validationUtils';
+import { isModuleAllowedInSection } from '../utils/moduleSectionFilter';
 import { FBDEditor } from '../components/fbd/FBDEditor';
 import { FBDDiagram, PLCVariable } from '../types';
 import { SaveMacroModal } from '../components/modals/SaveMacroModal';
@@ -88,6 +90,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const [activeDragElement, setActiveDragElement] = useState<Partial<LadderElement> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [crossRefElement, setCrossRefElement] = useState<LadderElement | null>(null);
+  const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
 
   // Custom Macro creation state
   const [isSaveMacroOpen, setIsSaveMacroOpen] = useState(false);
@@ -116,12 +119,27 @@ export const EditorView: React.FC<EditorViewProps> = ({
     }
   }, [isEditingSubroutine, currentSubroutine, onUpdateSubroutine, currentSection, onUpdateSetupRungs, onUpdateMainRungs]);
 
+
   // Add Element to the selected rung
   const handleAddElement = useCallback((template: Partial<LadderElement>) => {
     if (activeRungs.length === 0) return;
+
+    if (!isEditingSubroutine && currentSection === 'setup' && template.type && template.category) {
+      if (!isModuleAllowedInSection(template.type, template.category, 'setup')) {
+        toast.error(`A(z) ${template.name || template.type} (${template.type}) blokk csak a ciklikus loop() szakaszban használható!`);
+        return;
+      }
+    }
+
     const targetIdx = Math.min(selectedRungIndex, activeRungs.length - 1);
+    const targetRung = activeRungs[targetIdx];
+    const isCoil = isCoilOrModule(template.category, template.type);
+    if (isCoil && targetRung && targetRung.coils.length >= 1) {
+      toast.error("Egy fokon csak egy kimenet (tekercs) lehet.");
+      return;
+    }
     handleUpdateActiveRungs(addElementToRung(activeRungs, targetIdx, template));
-  }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs]);
+  }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs, isEditingSubroutine, currentSection]);
 
   const handleAddRung = useCallback(() => {
     const newRung = createEmptyRung(activeRungs.length, isEditingSubroutine);
@@ -149,6 +167,89 @@ export const EditorView: React.FC<EditorViewProps> = ({
     if (newIdx !== -1) onSelectRung(newIdx);
   }, [activeRungs, handleUpdateActiveRungs, onSelectRung]);
 
+  // Keyboard shortcuts (Delete, Ctrl+D, Ctrl+Up/Down, Escape)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const activeTag = activeEl?.tagName?.toLowerCase();
+      const isEditable = activeEl?.getAttribute('contenteditable') === 'true';
+      const isInsideModal = !!activeEl?.closest('.fixed');
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select' || isEditable || isInsideModal || isSaveMacroOpen) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        setSelectedElementIds([]);
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedElementIds.length > 0) {
+          e.preventDefault();
+          let currentRungs = activeRungs;
+          selectedElementIds.forEach(elId => {
+            currentRungs = deleteElementFromRungs(currentRungs, elId);
+          });
+          handleUpdateActiveRungs(currentRungs);
+          setSelectedElementIds([]);
+          toast.success(`${selectedElementIds.length} elem törölve`);
+        } else if (selectedRungIndex >= 0 && selectedRungIndex < activeRungs.length && activeRungs.length > 1) {
+          e.preventDefault();
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleDeleteRung(targetRung.id);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (selectedRungIndex >= 0 && selectedRungIndex < activeRungs.length) {
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleDuplicateRung(targetRung.id);
+            toast.success(`Fok #${targetRung.number + 1} duplikálva`);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (selectedRungIndex > 0) {
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleMoveRung(targetRung.id, 'up');
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (selectedRungIndex < activeRungs.length - 1) {
+          const targetRung = activeRungs[selectedRungIndex];
+          if (targetRung) {
+            handleMoveRung(targetRung.id, 'down');
+          }
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activeRungs,
+    selectedElementIds,
+    selectedRungIndex,
+    handleDeleteRung,
+    handleDuplicateRung,
+    handleMoveRung,
+    handleUpdateActiveRungs
+  ]);
+
   const handleUpdateRungComment = useCallback((id: string, comment: string) => {
     handleUpdateActiveRungs(activeRungs.map((r) => (r.id === id ? { ...r, comment } : r)));
   }, [activeRungs, handleUpdateActiveRungs]);
@@ -163,7 +264,23 @@ export const EditorView: React.FC<EditorViewProps> = ({
 
   const handleDeleteElement = useCallback((id: string) => {
     handleUpdateActiveRungs(deleteElementFromRungs(activeRungs, id));
+    setSelectedElementIds(prev => prev.filter(eId => eId !== id));
   }, [activeRungs, handleUpdateActiveRungs]);
+
+  const handleElementSelect = useCallback((el: LadderElement, e?: React.MouseEvent) => {
+    if (e && (e.ctrlKey || e.metaKey)) {
+      setSelectedElementIds(prev => {
+        if (prev.includes(el.id)) {
+          return prev.filter(id => id !== el.id);
+        } else {
+          return [...prev, el.id];
+        }
+      });
+    } else {
+      setSelectedElementIds([el.id]);
+      onSelectElement(el);
+    }
+  }, [onSelectElement]);
 
   const handleDropElementOnBranch = useCallback((
     rungId: string,
@@ -171,8 +288,15 @@ export const EditorView: React.FC<EditorViewProps> = ({
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    if (!isEditingSubroutine && currentSection === 'setup' && elementData.type && elementData.category) {
+      if (!isModuleAllowedInSection(elementData.type, elementData.category, 'setup')) {
+        toast.error(`A(z) ${elementData.name || elementData.type} (${elementData.type}) blokk csak a ciklikus loop() szakaszban használható!`);
+        return;
+      }
+    }
+
     // Prevent dropping coils or output modules into a contact branch
-    if (elementData.category && ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol'].includes(elementData.category)) {
+    if (isCoilOrModule(elementData.category, elementData.type)) {
       toast.error("Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
       return;
     }
@@ -214,9 +338,22 @@ export const EditorView: React.FC<EditorViewProps> = ({
     index: number,
     elementData: Partial<LadderElement>
   ) => {
+    if (!isEditingSubroutine && currentSection === 'setup' && elementData.type && elementData.category) {
+      if (!isModuleAllowedInSection(elementData.type, elementData.category, 'setup')) {
+        toast.error(`A(z) ${elementData.name || elementData.type} (${elementData.type}) blokk csak a ciklikus loop() szakaszban használható!`);
+        return;
+      }
+    }
+
     // Prevent dropping input contacts into the output (coil) area
-    if (elementData.category && ['contact', 'variable_op', 'variable'].includes(elementData.category)) {
+    if (!isCoilOrModule(elementData.category, elementData.type)) {
       toast.error("Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
+      return;
+    }
+
+    const targetRung = activeRungs.find((r) => r.id === rungId);
+    if (targetRung && targetRung.coils.length >= 1) {
+      toast.error("Egy fokon csak egy kimenet (tekercs) lehet.");
       return;
     }
 
@@ -264,32 +401,28 @@ export const EditorView: React.FC<EditorViewProps> = ({
     const elementData = active.data.current as Partial<LadderElement>;
     const overId = String(over.id);
 
-    // Parse the drop zone ID
-    if (overId.includes('_drop_')) {
-      // It's a branch drop zone: branchId_drop_index or branchId_empty
-      const parts = overId.split('_drop_');
-      if (parts.length === 2) {
-        const branchId = parts[0];
-        const insertIndex = parseInt(parts[1], 10);
-        // Find the rung that contains this branch to pass to the handler
-        const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
-        if (rung) {
-           handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
-        }
-      }
-    } else if (overId.includes('_empty')) {
-       // branchId_empty
-       const branchId = overId.replace('_empty', '');
-       const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
-       if (rung) {
-           handleDropElementOnBranch(rung.id, branchId, 0, elementData);
-       }
-    } else if (overId.includes('_coils_drop')) {
+    if (overId.endsWith('_coils_drop')) {
       // It's a coil drop zone: rungId_coils_drop
-      const rungId = overId.split('_coils_drop')[0];
+      const rungId = overId.replace('_coils_drop', '');
       const rung = activeRungs.find(r => r.id === rungId);
       if (rung) {
         handleDropElementOnCoils(rungId, rung.coils.length, elementData);
+      }
+    } else if (overId.endsWith('_empty')) {
+      // branchId_empty
+      const branchId = overId.replace('_empty', '');
+      const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
+      if (rung) {
+        handleDropElementOnBranch(rung.id, branchId, 0, elementData);
+      }
+    } else if (overId.includes('_drop_')) {
+      // branchId_drop_index
+      const lastIndex = overId.lastIndexOf('_drop_');
+      const branchId = overId.substring(0, lastIndex);
+      const insertIndex = parseInt(overId.substring(lastIndex + 6), 10);
+      const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
+      if (rung && !isNaN(insertIndex)) {
+        handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
       }
     }
   };
@@ -586,6 +719,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
               selectedRungIndex={selectedRungIndex}
               customModules={customModules}
               subroutines={subroutines}
+              section={!isEditingSubroutine ? currentSection : 'loop'}
               onOpenManagement={onOpenManagement}
             />
 
@@ -604,9 +738,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
                 searchQuery={searchQuery}
                 simulationState={simulationState}
                 selectedRungIndex={selectedRungIndex}
+                selectedElementIds={selectedElementIds}
                 isSetupSection={!isEditingSubroutine && currentSection === 'setup'}
                 onSelectRung={onSelectRung}
-                onSelectElement={onSelectElement}
+                onSelectElement={handleElementSelect}
                 onDeleteElement={handleDeleteElement}
                 onAddRung={handleAddRung}
                 onDeleteRung={handleDeleteRung}

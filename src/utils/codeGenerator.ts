@@ -123,6 +123,20 @@ export function generateArduinoCode(
   let rs485DePin = protocols?.modbus?.deRePin?.replace('D', '') || '2';
 
   function analyzeElement(el: LadderElement) {
+    if (['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(el.type)) {
+      if (el.sourceVariable && el.sourceVariable.startsWith('D')) inputPins.add(el.sourceVariable);
+      if (el.operandB && el.operandB.startsWith('D')) inputPins.add(el.operandB);
+      if (el.operandC && el.operandC.startsWith('D')) inputPins.add(el.operandC);
+      if (el.targetVariable && el.targetVariable.startsWith('D')) outputPins.add(el.targetVariable);
+      if (el.variable && el.variable.startsWith('D')) outputPins.add(el.variable);
+      if (el.pin && el.pin.startsWith('D')) outputPins.add(el.pin);
+
+      if (el.sourceVariable && el.sourceVariable.startsWith('M')) internalFlags.add(el.sourceVariable);
+      if (el.operandB && el.operandB.startsWith('M')) internalFlags.add(el.operandB);
+      if (el.operandC && el.operandC.startsWith('M')) internalFlags.add(el.operandC);
+      if (el.targetVariable && el.targetVariable.startsWith('M')) internalFlags.add(el.targetVariable);
+    }
+
     if (el.variable && el.variable.startsWith('M')) {
       internalFlags.add(el.variable);
     }
@@ -1284,6 +1298,9 @@ export function generateArduinoCode(
         }
         if (coil.variable) {
           out.push(`  if (${rungPowerVar}) ${coil.variable} = false;`);
+          if (counters.has(coil.variable)) {
+            out.push(`  if (${rungPowerVar}) { counter_${coil.variable}.count = 0; counter_${coil.variable}.isDone = false; counter_${coil.variable}.prevTrigger = false; }`);
+          }
         }
       } else if (coil.type === 'INTERNAL_FLAG_COIL' && coil.variable) {
         out.push(`  ${coil.variable} = ${rungPowerVar};`);
@@ -1413,6 +1430,74 @@ export function generateArduinoCode(
         const target = coil.targetVariable || coil.variable || 'V_DEST';
         const src = coil.sourceVariable || coil.assignExpression || coil.variable || '0';
         out.push(`    ${target} = ${src};`);
+        out.push('  }');
+      } else if (['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(coil.type)) {
+        const resolveExpr = (vName?: string) => {
+          if (!vName || vName.trim() === '') return 'false';
+          const v = vName.trim();
+          if (v.toLowerCase() === 'true' || v === '1') return 'true';
+          if (v.toLowerCase() === 'false' || v === '0') return 'false';
+          if (v.startsWith('D')) {
+            return isSetup ? `(!digitalRead(PIN_${v}))` : `in_${v}`;
+          }
+          if (v.startsWith('EXP_A')) {
+            const pIdx = parseInt(v.replace('EXP_A', ''), 10) || 0;
+            return `(mcp23017_digital_read(${pIdx}))`;
+          }
+          if (v.startsWith('EXP_B')) {
+            const pIdx = (parseInt(v.replace('EXP_B', ''), 10) || 0) + 8;
+            return `(mcp23017_digital_read(${pIdx}))`;
+          }
+          if (v.startsWith('PCF_P')) {
+            const pIdx = parseInt(v.replace('PCF_P', ''), 10) || 0;
+            return `(pcf8574_digital_read(${pIdx}))`;
+          }
+          return v;
+        };
+
+        const in1 = resolveExpr(coil.sourceVariable);
+        const in2 = resolveExpr(coil.operandB);
+        const in3 = resolveExpr(coil.operandC);
+        let expr = 'false';
+        if (coil.type === 'COMB_AND') expr = `(${in1} && ${in2})`;
+        else if (coil.type === 'COMB_AND3') expr = `(${in1} && ${in2} && ${in3})`;
+        else if (coil.type === 'COMB_OR') expr = `(${in1} || ${in2})`;
+        else if (coil.type === 'COMB_OR3') expr = `(${in1} || ${in2} || ${in3})`;
+        else if (coil.type === 'COMB_XOR') expr = `(${in1} != ${in2})`;
+        else if (coil.type === 'COMB_NOT') expr = `(!(${in1}))`;
+
+        out.push(`  if (${rungPowerVar}) {`);
+        const target = coil.targetVariable || coil.variable;
+        if (target) {
+          if (target.startsWith('D') && outputPins.has(target)) {
+            out.push(`    digitalWrite(PIN_${target}, (${expr}) ? HIGH : LOW);`);
+          } else if (target.startsWith('EXP_A')) {
+            const pIdx = parseInt(target.replace('EXP_A', ''), 10) || 0;
+            out.push(`    mcp23017_digital_write(${pIdx}, ${expr});`);
+          } else if (target.startsWith('EXP_B')) {
+            const pIdx = (parseInt(target.replace('EXP_B', ''), 10) || 0) + 8;
+            out.push(`    mcp23017_digital_write(${pIdx}, ${expr});`);
+          } else if (target.startsWith('PCF_P')) {
+            const pIdx = parseInt(target.replace('PCF_P', ''), 10) || 0;
+            out.push(`    pcf8574_digital_write(${pIdx}, ${expr});`);
+          } else {
+            out.push(`    ${target} = ${expr};`);
+          }
+        }
+        if (coil.pin) {
+          if (coil.pin.startsWith('EXP_A')) {
+            const pIdx = parseInt(coil.pin.replace('EXP_A', ''), 10) || 0;
+            out.push(`    mcp23017_digital_write(${pIdx}, ${expr});`);
+          } else if (coil.pin.startsWith('EXP_B')) {
+            const pIdx = (parseInt(coil.pin.replace('EXP_B', ''), 10) || 0) + 8;
+            out.push(`    mcp23017_digital_write(${pIdx}, ${expr});`);
+          } else if (coil.pin.startsWith('PCF_P')) {
+            const pIdx = parseInt(coil.pin.replace('PCF_P', ''), 10) || 0;
+            out.push(`    pcf8574_digital_write(${pIdx}, ${expr});`);
+          } else {
+            out.push(`    digitalWrite(PIN_${coil.pin}, (${expr}) ? HIGH : LOW);`);
+          }
+        }
         out.push('  }');
       } else if (coil.type === 'JMP') {
         const rawLabel = coil.labelName || 'LBL_SKIP';

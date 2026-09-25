@@ -575,6 +575,167 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
           )}
 
           {/* ------------------------------------------------------------- */}
+          {/* COMBINATIONAL LOGIC GATES (COMB_AND, COMB_AND3, COMB_OR, COMB_OR3, COMB_XOR, COMB_NOT) */}
+          {/* ------------------------------------------------------------- */}
+          {['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(formData.type) && (
+            <div className="p-3.5 bg-sky-950/30 border border-sky-800/80 rounded-lg space-y-3.5">
+              <div className="flex items-center gap-1.5 text-sky-400 font-semibold text-xs">
+                <Cpu className="w-4 h-4" /> Kombinációs Logikai Kapu ({formData.type})
+              </div>
+
+              {/* Bemenet 1 (In1) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Bemenet 1 (In1: Pin / Változó / M bit)</label>
+                  <select
+                    value={formData.sourceVariable || ''}
+                    onChange={(e) => setFormData({ ...formData, sourceVariable: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-emerald-300 font-mono"
+                  >
+                    <option value="">-- Válassz változót / M bitet --</option>
+                    {renderVariableOptions(variables, true)}
+                    <optgroup label="Arduino Digitális Bemenetek">
+                      {ARDUINO_DIGITAL_PINS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">VAGY Egyedi Megnevezés / Pin</label>
+                  <input
+                    type="text"
+                    value={formData.sourceVariable || ''}
+                    onChange={(e) => setFormData({ ...formData, sourceVariable: e.target.value })}
+                    placeholder="pl. M0 vagy D2 vagy V_IN1"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Bemenet 2 (In2) - for AND, AND3, OR, OR3, XOR */}
+              {formData.type !== 'COMB_NOT' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">Bemenet 2 (In2: Pin / Változó / M bit)</label>
+                    <select
+                      value={formData.operandB || ''}
+                      onChange={(e) => setFormData({ ...formData, operandB: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-teal-300 font-mono"
+                    >
+                      <option value="">-- Válassz változót / M bitet --</option>
+                      {renderVariableOptions(variables, true)}
+                      <optgroup label="Arduino Digitális Bemenetek">
+                        {ARDUINO_DIGITAL_PINS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">VAGY Egyedi Megnevezés / Pin</label>
+                    <input
+                      type="text"
+                      value={formData.operandB || ''}
+                      onChange={(e) => setFormData({ ...formData, operandB: e.target.value })}
+                      placeholder="pl. M1 vagy D3 vagy V_IN2"
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Bemenet 3 (In3) - for AND3, OR3 */}
+              {['COMB_AND3', 'COMB_OR3'].includes(formData.type) && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">Bemenet 3 (In3: Pin / Változó / M bit)</label>
+                    <select
+                      value={formData.operandC || ''}
+                      onChange={(e) => setFormData({ ...formData, operandC: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono"
+                    >
+                      <option value="">-- Válassz változót / M bitet --</option>
+                      {renderVariableOptions(variables, true)}
+                      <optgroup label="Arduino Digitális Bemenetek">
+                        {ARDUINO_DIGITAL_PINS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300 mb-1">VAGY Egyedi Megnevezés / Pin</label>
+                    <input
+                      type="text"
+                      value={formData.operandC || ''}
+                      onChange={(e) => setFormData({ ...formData, operandC: e.target.value })}
+                      placeholder="pl. M2 vagy D4 vagy V_IN3"
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Kimenet (Out) */}
+              <div>
+                <label className="block text-xs text-slate-300 mb-1">Kimenet (Out: Változó / M bit / Pin)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={formData.targetVariable || formData.variable || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        targetVariable: e.target.value,
+                        variable: e.target.value
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono"
+                  >
+                    <option value="">-- Válassz kimeneti változót / M bitet --</option>
+                    {renderVariableOptions(variables, true)}
+                    <optgroup label="Arduino Digitális Kimenetek">
+                      {ARDUINO_DIGITAL_PINS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+
+                  <input
+                    type="text"
+                    value={formData.targetVariable || formData.variable || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        targetVariable: e.target.value,
+                        variable: e.target.value
+                      })
+                    }
+                    placeholder="pl. M3 vagy D8 vagy V_OUT"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                {formData.type === 'COMB_AND' && 'Kombinációs logikai ÉS kapu: Ki = Be1 && Be2.'}
+                {formData.type === 'COMB_AND3' && 'Kombinációs logikai 3-bemenetű ÉS kapu: Ki = Be1 && Be2 && Be3.'}
+                {formData.type === 'COMB_OR' && 'Kombinációs logikai VAGY kapu: Ki = Be1 || Be2.'}
+                {formData.type === 'COMB_OR3' && 'Kombinációs logikai 3-bemenetű VAGY kapu: Ki = Be1 || Be2 || Be3.'}
+                {formData.type === 'COMB_XOR' && 'Kombinációs logikai Kizáró VAGY kapu: Ki = Be1 ^ Be2.'}
+                {formData.type === 'COMB_NOT' && 'Kombinációs logikai Inverter kapu: Ki = !Be1.'}
+              </p>
+            </div>
+          )}
+
+          {/* ------------------------------------------------------------- */}
           {/* WORD & BIT OPERATIONS (MOV, WAND, WOR, WXOR, WNOT, SHL, SHR) */}
           {/* ------------------------------------------------------------- */}
           {['MOV', 'WAND', 'WOR', 'WXOR', 'WNOT', 'SHL', 'SHR'].includes(formData.type) && (

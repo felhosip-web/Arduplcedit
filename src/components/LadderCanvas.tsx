@@ -121,10 +121,11 @@ interface LadderCanvasProps {
   rungs: Rung[];
   simulationState: SimulationState;
   selectedRungIndex: number;
+  selectedElementIds?: string[];
   searchQuery?: string;
   isSetupSection?: boolean;
   onSelectRung: (index: number) => void;
-  onSelectElement: (el: LadderElement) => void;
+  onSelectElement: (el: LadderElement, e?: React.MouseEvent) => void;
   onDeleteElement: (id: string) => void;
   onAddRung: () => void;
   onDeleteRung: (id: string) => void;
@@ -145,12 +146,13 @@ interface RungRowProps {
   rung: Rung;
   rIndex: number;
   isSelected: boolean;
+  selectedElementIds?: string[];
   searchQuery?: string;
   simulationState: SimulationState;
   isSetupSection: boolean;
   validationErrors: ValidationError[];
   onSelectRung: (index: number) => void;
-  onSelectElement: (el: LadderElement) => void;
+  onSelectElement: (el: LadderElement, e?: React.MouseEvent) => void;
   onDeleteElement: (id: string) => void;
   onMoveRung: (id: string, direction: 'up' | 'down') => void;
   onUpdateRungComment: (id: string, comment: string) => void;
@@ -174,6 +176,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   rung,
   rIndex,
   isSelected,
+  selectedElementIds = [],
   searchQuery,
   simulationState,
   isSetupSection,
@@ -412,8 +415,28 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
         </div>
 
         {/* Parallel Branches (Left / Contacts Section) */}
-        <div className="flex flex-col gap-3 flex-1 min-w-[280px]">
-          {rung.branches.map((branch, bIndex) => {
+        <div className="relative flex flex-col gap-3 flex-1 min-w-[280px]">
+          {/* Left Vertical Rail for OR logic */}
+          {rung.branches.length > 1 && (
+            <div
+              className={`absolute left-0 top-[22px] bottom-[22px] w-0.5 z-10 transition-colors ${
+                simulationState.isRunning ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-600'
+              }`}
+            />
+          )}
+
+          {/* Right Vertical Rail for OR logic */}
+          {rung.branches.length > 1 && (
+            <div
+              className={`absolute right-0 top-[22px] bottom-[22px] w-0.5 z-10 transition-colors ${
+                simulationState.isRunning && rung.branches.some(b => !!simulationState.activeBranches[b.id])
+                  ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                  : 'bg-slate-600'
+              }`}
+            />
+          )}
+
+          {rung.branches.map((branch) => {
             const isBranchEnergized = simulationState.isRunning && !!simulationState.activeBranches[branch.id];
 
             return (
@@ -424,7 +447,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 }`} />
 
                 {/* Branch Elements in Series */}
-                <div className="flex items-center flex-wrap gap-1">
+                <div className="flex items-center gap-1">
                   {/* Drop zone before first element */}
                   <DroppableZone
                     id={`${branch.id}_drop_0`}
@@ -439,6 +462,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                         element={el}
                         isActive={simulationState.activeElements[el.id]}
                         isSimulating={simulationState.isRunning}
+                        isSelected={selectedElementIds.includes(el.id)}
                         timerState={el.variable ? (simulationState.timerStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                         counterState={el.variable ? (simulationState.counterStates[el.variable] || (el.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === el.variable)?.[1] : undefined)) : undefined}
                         onSelect={onSelectElement}
@@ -470,12 +494,17 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                   )}
                 </div>
 
+                {/* Right Lead Wire to Right Vertical Rail */}
+                <div className={`flex-1 min-w-[12px] h-0.5 ${
+                  isBranchEnergized ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-600'
+                }`} />
+
                 {/* Delete parallel branch if more than 1 */}
                 {rung.branches.length > 1 && (
                   <button
                     type="button"
                     onClick={() => onDeleteParallelBranch(rung.id, branch.id)}
-                    className="ml-2 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px]"
+                    className="ml-1 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px] shrink-0 z-20"
                     title="Párhuzamos ág törlése"
                   >
                     ✕
@@ -501,6 +530,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 element={coil}
                 isActive={simulationState.activeElements[coil.id] ?? isRungEnergized}
                 isSimulating={simulationState.isRunning}
+                isSelected={selectedElementIds.includes(coil.id)}
                 timerState={coil.variable ? (simulationState.timerStates[coil.variable] || (coil.variable.startsWith('var_') ? Object.entries(simulationState.timerStates).find(([k]) => k === coil.variable)?.[1] : undefined)) : undefined}
                 counterState={coil.variable ? (simulationState.counterStates[coil.variable] || (coil.variable.startsWith('var_') ? Object.entries(simulationState.counterStates).find(([k]) => k === coil.variable)?.[1] : undefined)) : undefined}
                 onSelect={onSelectElement}
@@ -518,15 +548,21 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
             </React.Fragment>
           ))}
 
-          {/* Drop zone to add another coil/module */}
-          <DroppableZone
-            id={`${rung.id}_coils_drop`}
-            className="px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400"
-          >
-            <div className="flex items-center gap-1 pointer-events-none" title="Húzz ide további tekercset, időzítőt vagy könyvtár modult">
-               <Plus className="w-3 h-3" /> Kimenet
+          {/* Drop zone to add coil/module (max 1 output per rung) */}
+          {rung.coils.length === 0 ? (
+            <DroppableZone
+              id={`${rung.id}_coils_drop`}
+              className="px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400"
+            >
+              <div className="flex items-center gap-1 pointer-events-none" title="Húzz ide tekercset, időzítőt vagy könyvtár modult">
+                 <Plus className="w-3 h-3" /> Kimenet
+              </div>
+            </DroppableZone>
+          ) : (
+            <div className="px-2 py-1 text-[10px] font-mono text-slate-600 border border-slate-800 rounded bg-slate-950/40 select-none" title="Egy fokon legfejlebb egy kimenet lehet">
+              Max 1 kimenet
             </div>
-          </DroppableZone>
+          )}
         </div>
 
         {/* Right Return to GND Rail */}
@@ -544,6 +580,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   rungs,
   simulationState,
   selectedRungIndex,
+  selectedElementIds = [],
   searchQuery,
   isSetupSection = false,
   onSelectRung,
@@ -706,6 +743,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                     rung={rung}
                     rIndex={rIndex}
                     isSelected={selectedRungIndex === rIndex}
+                    selectedElementIds={selectedElementIds}
                     searchQuery={searchQuery}
                     simulationState={simulationState}
                     isSetupSection={isSetupSection}

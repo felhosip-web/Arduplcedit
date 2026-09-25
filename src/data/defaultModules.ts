@@ -775,6 +775,80 @@ export const DEFAULT_MODULE_TEMPLATES: CustomModuleTemplate[] = [
     pidSampleTimeMs: 50,
     pidReverseAction: false,
     isBuiltIn: true
+  },
+  // Combinational Logic Gate Modules
+  {
+    id: 'mod_comb_and',
+    name: 'Logikai ÉS Kapu (AND)',
+    symbol: '[&]',
+    category: 'library_module',
+    type: 'COMB_AND',
+    description: 'Kombinációs logikai ÉS kapu: Ki = Be1 ÉS Be2. Bemenetek és kimenet regiszterhez, flaghez vagy pinhez köthető.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    targetVariable: 'M2',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_comb_and3',
+    name: 'Logikai ÉS Kapu 3 Bemenet (AND3)',
+    symbol: '[& 3]',
+    category: 'library_module',
+    type: 'COMB_AND3',
+    description: 'Kombinációs logikai 3-bemenetű ÉS kapu: Ki = Be1 ÉS Be2 ÉS Be3.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    operandC: 'M2',
+    targetVariable: 'M3',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_comb_or',
+    name: 'Logikai VAGY Kapu (OR)',
+    symbol: '[>=1]',
+    category: 'library_module',
+    type: 'COMB_OR',
+    description: 'Kombinációs logikai VAGY kapu: Ki = Be1 VAGY Be2.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    targetVariable: 'M2',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_comb_or3',
+    name: 'Logikai VAGY Kapu 3 Bemenet (OR3)',
+    symbol: '[>=1 3]',
+    category: 'library_module',
+    type: 'COMB_OR3',
+    description: 'Kombinációs logikai 3-bemenetű VAGY kapu: Ki = Be1 VAGY Be2 VAGY Be3.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    operandC: 'M2',
+    targetVariable: 'M3',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_comb_xor',
+    name: 'Logikai Kizáró VAGY Kapu (XOR)',
+    symbol: '[=1]',
+    category: 'library_module',
+    type: 'COMB_XOR',
+    description: 'Kombinációs logikai Kizáró VAGY kapu: Ki = Be1 XOR Be2.',
+    sourceVariable: 'M0',
+    operandB: 'M1',
+    targetVariable: 'M2',
+    isBuiltIn: true
+  },
+  {
+    id: 'mod_comb_not',
+    name: 'Logikai Inverter Kapu (NOT)',
+    symbol: '[NOT]',
+    category: 'library_module',
+    type: 'COMB_NOT',
+    description: 'Kombinációs logikai inverter kapu: Ki = NEM Be1.',
+    sourceVariable: 'M0',
+    targetVariable: 'M1',
+    isBuiltIn: true
   }
 ];
 

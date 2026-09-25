@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ElementType, ElementCategory, LadderElement, CustomModuleTemplate, Subroutine } from '../types';
 import { Radio, Zap, Clock, Cpu, Plus, HelpCircle, Layers, Sliders, Box, Network, Variable, Calendar } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
+import { isModuleAllowedInSection } from '../utils/moduleSectionFilter';
 
 // Helper component for draggables
 const DraggableItem = ({ id, data, children, className, onClick }: any) => {
@@ -28,6 +29,7 @@ interface ToolPaletteProps {
   selectedRungIndex: number;
   customModules: CustomModuleTemplate[];
   subroutines: Subroutine[];
+  section?: 'setup' | 'loop';
   onOpenManagement?: () => void;
 }
 
@@ -36,6 +38,7 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
   selectedRungIndex,
   customModules,
   subroutines,
+  section = 'loop',
   onOpenManagement
 }) => {
   const [activeTab, setActiveTab] = useState<
@@ -60,11 +63,15 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
       item.description.toLowerCase().includes(query) ||
       (item.libraryName && item.libraryName.toLowerCase().includes(query));
 
-    return matchesTab && matchesSearch;
+    const matchesSection = isModuleAllowedInSection(item.type, item.category, section as 'setup' | 'loop');
+
+    return matchesTab && matchesSearch && matchesSection;
   });
 
   const filteredSubroutines = subroutines.filter((sub) => {
     if (activeTab !== 'all' && activeTab !== 'subroutine') return false;
+    // Subroutines are cyclic loop logic
+    if (section === 'setup') return false;
     const query = searchQuery.toLowerCase();
     return sub.name.toLowerCase().includes(query) || sub.description.toLowerCase().includes(query);
   });
@@ -212,9 +219,16 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
             Fok #{selectedRungIndex}
           </span>
         </div>
-        <p className="text-[11px] text-slate-400 mt-1">
-          Húzd át (Drag & Drop) a kívánt létrafokra vagy kattints a hozzáadáshoz.
-        </p>
+        {section === 'setup' ? (
+          <div className="mt-2 p-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>⚡ setup() — csak inicializáló blokkok</span>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-400 mt-1">
+            Húzd át (Drag & Drop) a kívánt létrafokra vagy kattints a hozzáadáshoz.
+          </p>
+        )}
 
         {/* Search */}
         <div className="mt-3">

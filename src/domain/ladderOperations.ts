@@ -1,11 +1,12 @@
 import { Rung, LadderElement, ParallelBranch } from '../types';
+import { isCoilOrModule } from '../utils/validationUtils';
 
 /**
  * Pure, framework-agnostic domain logic for manipulating ladder rungs.
  */
 
-// Adds a new element to a rung. If the element is a coil, it goes to the coils array.
-// Otherwise, it's appended to the first branch, or a new branch is created if none exists.
+// Adds a new element to a rung. If the element is a coil, it goes to the coils array (max 1 coil per rung).
+// Otherwise, it's appended to the primary branch, or a new branch is created if none exists.
 export const addElementToRung = (
   rungs: Rung[],
   targetIdx: number,
@@ -34,10 +35,14 @@ export const addElementToRung = (
     comment: elementData.comment
   };
 
-  const isCoilOrModule = ['coil', 'library_module', 'subroutine'].includes(newElement.category || '');
+  const isOutput = isCoilOrModule(newElement.category, newElement.type);
 
   const updatedRungs = [...rungs];
-  if (isCoilOrModule) {
+  if (isOutput) {
+    if (targetRung.coils.length >= 1) {
+      // Do not allow more than 1 coil per rung
+      return rungs;
+    }
     updatedRungs[safeIdx] = {
       ...targetRung,
       coils: [...targetRung.coils, newElement]

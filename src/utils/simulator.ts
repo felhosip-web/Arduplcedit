@@ -842,16 +842,33 @@ export function runSimulationStep(
             isTiming: false
           };
         }
-      } else if (coil.type === 'CTU' && coil.variable) {
+      }
+      /*
+       * EXECUTION POLICY (EDGE VS LEVEL):
+       * - CTU / CTD Counters: Rising-edge on rung power (count increments/decrements once per rising edge).
+       * - COIL_RESET: Resets target coil output flag and counter state (count = 0, isDone = false).
+       * - MOV, Bitwise Ops (WAND, WOR, WXOR, WNOT, SHL, SHR), VAR_ASSIGN: Level execution while rung is powered.
+       */
+      else if ((coil.type === 'CTU' || coil.type === 'CTD') && coil.variable) {
         const preset = coil.presetCount || 5;
-        const currentCounter = nextCounterStates[coil.variable] || { currentCount: 0, isDone: false };
+        const currentCounter = nextCounterStates[coil.variable] || {
+          currentCount: coil.type === 'CTD' ? preset : 0,
+          isDone: false
+        };
 
         // Rising edge detection on the rung power
         if (rungHasPower && !wasCoilActive) {
-          const newCount = Math.min(preset, currentCounter.currentCount + 1);
+          let newCount = currentCounter.currentCount;
+          if (coil.type === 'CTU') {
+            newCount = Math.min(preset, currentCounter.currentCount + 1);
+          } else {
+            newCount = Math.max(0, currentCounter.currentCount - 1);
+          }
+
+          const isDone = coil.type === 'CTU' ? newCount >= preset : newCount <= 0;
           nextCounterStates[coil.variable] = {
             currentCount: newCount,
-            isDone: newCount >= preset
+            isDone
           };
         }
       } else if (coil.type === 'SERVO_WRITE') {
@@ -1971,4 +1988,3 @@ export function runSimulationStep(
     _timer1AccumMs: timer1AccumMs
   } as SimulationState;
 }
-
