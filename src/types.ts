@@ -96,6 +96,11 @@ export type ElementType =
   | 'SD_CARD_READY'        // Contact: Closes if SD card is mounted and ready
   // Closed-Loop PID Controller
   | 'PID_CONTROLLER'       // Instruction: Closed-loop PID Controller block
+  // Combinational Logic Gate Modules
+  | 'COMB_AND'             // Combinational AND Gate Module (In1 AND In2)
+  | 'COMB_OR'              // Combinational OR Gate Module (In1 OR In2)
+  | 'COMB_XOR'             // Combinational XOR Gate Module (In1 XOR In2)
+  | 'COMB_NOT'             // Combinational NOT Inverter Gate Module (NOT In1)
   // Subroutines & Custom
   | 'SUBROUTINE_CALL'      // User defined Subroutine / Function block
   | 'CUSTOM_MODULE';       // User defined custom hardware or logic block

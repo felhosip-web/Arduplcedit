@@ -922,6 +922,74 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
           </div>
         );
 
+      case 'COMB_AND':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-emerald-400 ring-1 ring-emerald-400 bg-emerald-950/40 text-emerald-200 shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'border-sky-800 text-sky-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-sky-300">
+                <Cpu className="w-3 h-3 text-sky-400" /> ÉS (&amp;)
+              </span>
+              <span className="text-[10px] font-mono text-sky-400 font-bold">AND</span>
+            </div>
+            <div className="text-[10px] font-mono text-slate-300 truncate mt-0.5">
+              {element.sourceVariable || 'In1'} &amp; {element.operandB || 'In2'} ➔ {resolvedTargetVar || element.targetVariable || element.variable || 'Out'}
+            </div>
+          </div>
+        );
+
+      case 'COMB_OR':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-emerald-400 ring-1 ring-emerald-400 bg-emerald-950/40 text-emerald-200 shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'border-sky-800 text-sky-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-sky-300">
+                <Cpu className="w-3 h-3 text-sky-400" /> VAGY (≥1)
+              </span>
+              <span className="text-[10px] font-mono text-sky-400 font-bold">OR</span>
+            </div>
+            <div className="text-[10px] font-mono text-slate-300 truncate mt-0.5">
+              {element.sourceVariable || 'In1'} | {element.operandB || 'In2'} ➔ {resolvedTargetVar || element.targetVariable || element.variable || 'Out'}
+            </div>
+          </div>
+        );
+
+      case 'COMB_XOR':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[120px] ${
+            isPassing ? 'border-emerald-400 ring-1 ring-emerald-400 bg-emerald-950/40 text-emerald-200 shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'border-sky-800 text-sky-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-sky-300">
+                <Cpu className="w-3 h-3 text-sky-400" /> XOR (=1)
+              </span>
+              <span className="text-[10px] font-mono text-sky-400 font-bold">XOR</span>
+            </div>
+            <div className="text-[10px] font-mono text-slate-300 truncate mt-0.5">
+              {element.sourceVariable || 'In1'} ^ {element.operandB || 'In2'} ➔ {resolvedTargetVar || element.targetVariable || element.variable || 'Out'}
+            </div>
+          </div>
+        );
+
+      case 'COMB_NOT':
+        return (
+          <div className={`px-2.5 py-1.5 border rounded bg-slate-800 text-xs min-w-[115px] ${
+            isPassing ? 'border-emerald-400 ring-1 ring-emerald-400 bg-emerald-950/40 text-emerald-200 shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'border-sky-800 text-sky-300'
+          }`}>
+            <div className="flex items-center justify-between font-bold text-[11px]">
+              <span className="flex items-center gap-1 text-sky-300">
+                <Cpu className="w-3 h-3 text-sky-400" /> NOT
+              </span>
+              <span className="text-[10px] font-mono text-sky-400 font-bold">INVERT</span>
+            </div>
+            <div className="text-[10px] font-mono text-slate-300 truncate mt-0.5">
+              !{element.sourceVariable || 'In1'} ➔ {resolvedTargetVar || element.targetVariable || element.variable || 'Out'}
+            </div>
+          </div>
+        );
+
       case 'PID_CONTROLLER':
         return (
           <div
