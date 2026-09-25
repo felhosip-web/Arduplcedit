@@ -1297,6 +1297,9 @@ export function generateArduinoCode(
         }
         if (coil.variable) {
           out.push(`  if (${rungPowerVar}) ${coil.variable} = false;`);
+          if (counters.has(coil.variable)) {
+            out.push(`  if (${rungPowerVar}) { counter_${coil.variable}.count = 0; counter_${coil.variable}.isDone = false; counter_${coil.variable}.prevTrigger = false; }`);
+          }
         }
       } else if (coil.type === 'INTERNAL_FLAG_COIL' && coil.variable) {
         out.push(`  ${coil.variable} = ${rungPowerVar};`);

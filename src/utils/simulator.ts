@@ -39,40 +39,6 @@ function resolveOperandVal(
   return 0;
 }
 
-function resolveBoolInput(
-  operand: string | undefined,
-  prevState: SimulationState,
-  variableValues: Record<string, number | boolean | string>,
-  internalFlags: Record<string, boolean>,
-  expanderInputs: Record<string, boolean>,
-  expanderOutputs: Record<string, boolean>
-): boolean {
-  if (!operand || operand === '') return false;
-  const key = operand.trim();
-  if (key.toLowerCase() === 'true' || key === '1') return true;
-  if (key.toLowerCase() === 'false' || key === '0') return false;
-
-  if (key.startsWith('D') && prevState.digitalInputs[key] !== undefined) {
-    return !!prevState.digitalInputs[key];
-  }
-  if (key.startsWith('EXP_') || key.startsWith('PCF_')) {
-    return !!(expanderInputs[key] ?? expanderOutputs[key] ?? false);
-  }
-  if (internalFlags[key] !== undefined) {
-    return !!internalFlags[key];
-  }
-  if (variableValues[key] !== undefined) {
-    const v = variableValues[key];
-    if (typeof v === 'boolean') return v;
-    return Boolean(Number(v) || v);
-  }
-  if (prevState.digitalOutputs[key] !== undefined) {
-    return !!prevState.digitalOutputs[key];
-  }
-
-  return false;
-}
-
 function formatTimestamp(): string {
   const d = new Date();
   const m = String(d.getMinutes()).padStart(2, '0');
@@ -876,16 +842,33 @@ export function runSimulationStep(
             isTiming: false
           };
         }
-      } else if (coil.type === 'CTU' && coil.variable) {
+      }
+      /*
+       * EXECUTION POLICY (EDGE VS LEVEL):
+       * - CTU / CTD Counters: Rising-edge on rung power (count increments/decrements once per rising edge).
+       * - COIL_RESET: Resets target coil output flag and counter state (count = 0, isDone = false).
+       * - MOV, Bitwise Ops (WAND, WOR, WXOR, WNOT, SHL, SHR), VAR_ASSIGN: Level execution while rung is powered.
+       */
+      else if ((coil.type === 'CTU' || coil.type === 'CTD') && coil.variable) {
         const preset = coil.presetCount || 5;
-        const currentCounter = nextCounterStates[coil.variable] || { currentCount: 0, isDone: false };
+        const currentCounter = nextCounterStates[coil.variable] || {
+          currentCount: coil.type === 'CTD' ? preset : 0,
+          isDone: false
+        };
 
         // Rising edge detection on the rung power
         if (rungHasPower && !wasCoilActive) {
-          const newCount = Math.min(preset, currentCounter.currentCount + 1);
+          let newCount = currentCounter.currentCount;
+          if (coil.type === 'CTU') {
+            newCount = Math.min(preset, currentCounter.currentCount + 1);
+          } else {
+            newCount = Math.max(0, currentCounter.currentCount - 1);
+          }
+
+          const isDone = coil.type === 'CTU' ? newCount >= preset : newCount <= 0;
           nextCounterStates[coil.variable] = {
             currentCount: newCount,
-            isDone: newCount >= preset
+            isDone
           };
         }
       } else if (coil.type === 'SERVO_WRITE') {
@@ -1049,65 +1032,6 @@ export function runSimulationStep(
               case 'SHR':  res = (valA >>> shift); break;
             }
             nextVariableValues[targetVar] = res;
-          }
-        }
-      }
-      else if (['COMB_AND', 'COMB_AND3', 'COMB_OR', 'COMB_OR3', 'COMB_XOR', 'COMB_NOT'].includes(coil.type)) {
-        const in1Val = resolveBoolInput(
-          coil.sourceVariable,
-          prevState,
-          nextVariableValues,
-          nextInternalFlags,
-          nextExpanderInputs,
-          nextExpanderOutputs
-        );
-        const in2Val = resolveBoolInput(
-          coil.operandB,
-          prevState,
-          nextVariableValues,
-          nextInternalFlags,
-          nextExpanderInputs,
-          nextExpanderOutputs
-        );
-        const in3Val = resolveBoolInput(
-          coil.operandC,
-          prevState,
-          nextVariableValues,
-          nextInternalFlags,
-          nextExpanderInputs,
-          nextExpanderOutputs
-        );
-
-        let gateOutput = false;
-        switch (coil.type) {
-          case 'COMB_AND':  gateOutput = in1Val && in2Val; break;
-          case 'COMB_AND3': gateOutput = in1Val && in2Val && in3Val; break;
-          case 'COMB_OR':   gateOutput = in1Val || in2Val; break;
-          case 'COMB_OR3':  gateOutput = in1Val || in2Val || in3Val; break;
-          case 'COMB_XOR':  gateOutput = in1Val !== in2Val; break;
-          case 'COMB_NOT':  gateOutput = !in1Val; break;
-        }
-
-        activeElements[coil.id] = rungHasPower && gateOutput;
-
-        if (rungHasPower) {
-          const target = coil.targetVariable || coil.variable;
-          if (target) {
-            if (target.startsWith('D')) {
-              nextDigitalOutputs[target] = gateOutput;
-            } else if (target.startsWith('EXP_') || target.startsWith('PCF_')) {
-              nextExpanderOutputs[target] = gateOutput;
-            } else {
-              nextInternalFlags[target] = gateOutput;
-              nextVariableValues[target] = gateOutput;
-            }
-          }
-          if (coil.pin) {
-            if (coil.pin.startsWith('EXP_') || coil.pin.startsWith('PCF_')) {
-              nextExpanderOutputs[coil.pin] = gateOutput;
-            } else {
-              nextDigitalOutputs[coil.pin] = gateOutput;
-            }
           }
         }
       }
