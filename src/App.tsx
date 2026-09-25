@@ -45,6 +45,7 @@ import { CodeViewerModal } from './components/CodeViewerModal';
 import { ProjectSaveLoadModal } from './components/modals/ProjectSaveLoadModal';
 import { HardwareMapModal } from './components/modals/HardwareMapModal';
 import { MobileBlockScreen } from './components/MobileBlockScreen';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { extractPinUsages, analyzePinConflicts, ARDUINO_UNO_PINS } from './utils/hardwareMapUtils';
 
 const STORAGE_KEY = 'arduino_plc_ladder_project_v3';
@@ -1470,6 +1471,9 @@ export default function App() {
         onUpdateElementPin={handleUpdateElementPin}
         onUpdateVariablePin={handleUpdateVariablePin}
       />
+
+      {/* PWA Install Prompt Banner */}
+      <PwaInstallPrompt />
     </div>
   );
 }
