@@ -44,6 +44,7 @@ import { ElementInspectorModal } from './components/ElementInspectorModal';
 import { CodeViewerModal } from './components/CodeViewerModal';
 import { ProjectSaveLoadModal } from './components/modals/ProjectSaveLoadModal';
 import { HardwareMapModal } from './components/modals/HardwareMapModal';
+import { MobileBlockScreen } from './components/MobileBlockScreen';
 import { extractPinUsages, analyzePinConflicts, ARDUINO_UNO_PINS } from './utils/hardwareMapUtils';
 
 const STORAGE_KEY = 'arduino_plc_ladder_project_v3';
@@ -211,6 +212,52 @@ const INITIAL_SIMULATION_STATE: SimulationState = {
 };
 
 export default function App() {
+  // Small screen (mobile/tablet portrait) gate detection
+  const [isSmallScreen, setIsSmallScreen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(max-width: 768px)').matches;
+    }
+    return false;
+  });
+
+  const [isBypassed, setIsBypassed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('arduplc_bypass_mobile_gate') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsSmallScreen(e.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  const handleBypassMobileGate = useCallback(() => {
+    try {
+      sessionStorage.setItem('arduplc_bypass_mobile_gate', 'true');
+    } catch (e) {
+      console.error('Session storage save error:', e);
+    }
+    setIsBypassed(true);
+  }, []);
+
   // Active Navigation Page (1. editor, 2. simulator, 3. management)
   const [activePage, setActivePage] = useState<ActivePage>('editor');
 
@@ -1202,6 +1249,10 @@ export default function App() {
     tasks,
     stateMachines
   );
+
+  if (isSmallScreen && !isBypassed) {
+    return <MobileBlockScreen onBypass={handleBypassMobileGate} />;
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
