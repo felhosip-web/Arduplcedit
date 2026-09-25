@@ -412,8 +412,28 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
         </div>
 
         {/* Parallel Branches (Left / Contacts Section) */}
-        <div className="flex flex-col gap-3 flex-1 min-w-[280px]">
-          {rung.branches.map((branch, bIndex) => {
+        <div className={`relative flex flex-col gap-3 flex-1 min-w-[280px] ${rung.branches.length > 1 ? 'pr-7' : ''}`}>
+          {/* Left Vertical Rail for OR logic */}
+          {rung.branches.length > 1 && (
+            <div
+              className={`absolute left-0 top-[22px] bottom-[22px] w-0.5 z-10 transition-colors ${
+                simulationState.isRunning ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-600'
+              }`}
+            />
+          )}
+
+          {/* Right Vertical Rail for OR logic */}
+          {rung.branches.length > 1 && (
+            <div
+              className={`absolute right-7 top-[22px] bottom-[22px] w-0.5 z-10 transition-colors ${
+                simulationState.isRunning && rung.branches.some(b => !!simulationState.activeBranches[b.id])
+                  ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                  : 'bg-slate-600'
+              }`}
+            />
+          )}
+
+          {rung.branches.map((branch) => {
             const isBranchEnergized = simulationState.isRunning && !!simulationState.activeBranches[branch.id];
 
             return (
@@ -424,7 +444,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                 }`} />
 
                 {/* Branch Elements in Series */}
-                <div className="flex items-center flex-wrap gap-1">
+                <div className="flex items-center gap-1">
                   {/* Drop zone before first element */}
                   <DroppableZone
                     id={`${branch.id}_drop_0`}
@@ -470,12 +490,17 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
                   )}
                 </div>
 
+                {/* Right Lead Wire to Right Vertical Rail */}
+                <div className={`flex-1 min-w-[12px] h-0.5 ${
+                  isBranchEnergized ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-slate-600'
+                }`} />
+
                 {/* Delete parallel branch if more than 1 */}
                 {rung.branches.length > 1 && (
                   <button
                     type="button"
                     onClick={() => onDeleteParallelBranch(rung.id, branch.id)}
-                    className="ml-2 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px]"
+                    className="ml-2 text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 text-[10px] shrink-0"
                     title="Párhuzamos ág törlése"
                   >
                     ✕
@@ -518,15 +543,21 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
             </React.Fragment>
           ))}
 
-          {/* Drop zone to add another coil/module */}
-          <DroppableZone
-            id={`${rung.id}_coils_drop`}
-            className="px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400"
-          >
-            <div className="flex items-center gap-1 pointer-events-none" title="Húzz ide további tekercset, időzítőt vagy könyvtár modult">
-               <Plus className="w-3 h-3" /> Kimenet
+          {/* Drop zone to add coil/module (max 1 output per rung) */}
+          {rung.coils.length === 0 ? (
+            <DroppableZone
+              id={`${rung.id}_coils_drop`}
+              className="px-2 py-1.5 border border-dashed rounded-lg text-xs font-mono flex items-center gap-1 transition-all border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-400"
+            >
+              <div className="flex items-center gap-1 pointer-events-none" title="Húzz ide tekercset, időzítőt vagy könyvtár modult">
+                 <Plus className="w-3 h-3" /> Kimenet
+              </div>
+            </DroppableZone>
+          ) : (
+            <div className="px-2 py-1 text-[10px] font-mono text-slate-600 border border-slate-800 rounded bg-slate-950/40 select-none" title="Egy fokon legfejlebb egy kimenet lehet">
+              Max 1 kimenet
             </div>
-          </DroppableZone>
+          )}
         </div>
 
         {/* Right Return to GND Rail */}

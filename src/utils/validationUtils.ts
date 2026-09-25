@@ -26,6 +26,11 @@ export function validateRung(rung: Rung, variables?: PLCVariable[], constants?: 
     errors.push({ rungId: rung.id, message: 'Üres létrafok: Adjon hozzá érintkezőket vagy tekercseket.' });
   }
 
+  // Restrict outputs to maximum 1 coil per rung
+  if (rung.coils.length > 1) {
+    errors.push({ rungId: rung.id, message: 'Egy fokon csak egy kimenet (tekercs) lehet.' });
+  }
+
   // Check missing binding on contacts and coils
   const isContactWithMissingBinding = (el: LadderElement) => {
     return ['NO_CONTACT', 'NC_CONTACT', 'RISING_EDGE', 'FALLING_EDGE'].includes(el.type) &&
@@ -56,7 +61,7 @@ export function validateRung(rung: Rung, variables?: PLCVariable[], constants?: 
   // 2. Coils (outputs) should only be placed in the coils section.
   rung.branches.forEach(branch => {
     branch.elements.forEach(el => {
-      if (isCoilOrModule(el.category)) {
+      if (isCoilOrModule(el.category, el.type)) {
         errors.push({ rungId: rung.id, message: `Helytelen elem a bemeneti ágban: ${el.name}. Tekercset vagy modult csak a kimeneti (jobb) oldalra lehet tenni.` });
       }
     });
@@ -64,7 +69,7 @@ export function validateRung(rung: Rung, variables?: PLCVariable[], constants?: 
 
   // 3. Only Coils and Modules should be in the coils section.
   rung.coils.forEach(coil => {
-    if (!isCoilOrModule(coil.category)) {
+    if (!isCoilOrModule(coil.category, coil.type)) {
       errors.push({ rungId: rung.id, message: `Helytelen elem a kimeneti oldalon: ${coil.name}. Csak tekercset vagy modult tehet ide.` });
     }
   });
@@ -206,8 +211,36 @@ export function validateRungs(rungs: Rung[], variables?: PLCVariable[], constant
 }
 
 /**
- * Helper to determine if an element category belongs to the output (coil) side.
+ * Helper to determine if an element category/type belongs to the output (coil/module) side.
  */
-export function isCoilOrModule(category: ElementCategory | string): boolean {
-  return ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol', 'variable_op', 'variable'].includes(category);
+export function isCoilOrModule(category?: ElementCategory | string, type?: string): boolean {
+  if (!category && !type) return false;
+  if (category === 'contact') return false;
+
+  const CONTACT_TYPES = [
+    'NO_CONTACT',
+    'NC_CONTACT',
+    'RISING_EDGE',
+    'FALLING_EDGE',
+    'ANALOG_CMP',
+    'INTERNAL_FLAG_CONTACT',
+    'VAR_CMP',
+    'BUFFER_EMPTY',
+    'BUFFER_FULL',
+    'NRF24_AVAILABLE',
+    'EEPROM_24C_CHECK',
+    'RTC_TIME_RANGE',
+    'RTC_TIME_CMP',
+    'RTC_CALENDAR_RANGE',
+    'RTC_PULSE_TICK',
+    'MODBUS_STATUS',
+    'BOD_STATUS',
+    'SD_CARD_READY'
+  ];
+
+  if (type && CONTACT_TYPES.includes(type)) {
+    return false;
+  }
+
+  return ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol', 'variable_op', 'variable', 'rtc'].includes(category || '');
 }

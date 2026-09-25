@@ -8,6 +8,7 @@ import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { ElementBlock } from '../components/ElementBlock';
 import { toast } from 'react-hot-toast';
 import { addElementToRung, createEmptyRung, deleteElementFromRungs, duplicateRung, moveRung, addParallelBranch, deleteParallelBranch } from '../domain/ladderOperations';
+import { isCoilOrModule } from '../utils/validationUtils';
 import { FBDEditor } from '../components/fbd/FBDEditor';
 import { FBDDiagram, PLCVariable } from '../types';
 import { SaveMacroModal } from '../components/modals/SaveMacroModal';
@@ -120,6 +121,12 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const handleAddElement = useCallback((template: Partial<LadderElement>) => {
     if (activeRungs.length === 0) return;
     const targetIdx = Math.min(selectedRungIndex, activeRungs.length - 1);
+    const targetRung = activeRungs[targetIdx];
+    const isCoil = isCoilOrModule(template.category, template.type);
+    if (isCoil && targetRung && targetRung.coils.length >= 1) {
+      toast.error("Egy fokon csak egy kimenet (tekercs) lehet.");
+      return;
+    }
     handleUpdateActiveRungs(addElementToRung(activeRungs, targetIdx, template));
   }, [activeRungs, selectedRungIndex, handleUpdateActiveRungs]);
 
@@ -172,7 +179,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
     elementData: Partial<LadderElement>
   ) => {
     // Prevent dropping coils or output modules into a contact branch
-    if (elementData.category && ['coil', 'timer', 'counter', 'library_module', 'subroutine', 'protocol'].includes(elementData.category)) {
+    if (isCoilOrModule(elementData.category, elementData.type)) {
       toast.error("Ide csak érintkező (bemenet) típusú elemet húzhat! Tekercseket és modulokat a kimeneti (jobb) oldalra tegyen.");
       return;
     }
@@ -215,8 +222,14 @@ export const EditorView: React.FC<EditorViewProps> = ({
     elementData: Partial<LadderElement>
   ) => {
     // Prevent dropping input contacts into the output (coil) area
-    if (elementData.category && ['contact', 'variable_op', 'variable'].includes(elementData.category)) {
+    if (!isCoilOrModule(elementData.category, elementData.type)) {
       toast.error("Ide csak kimenet (tekercs, modul) típusú elemet húzhat! Érintkezőket a bemeneti (bal) oldalra tegyen.");
+      return;
+    }
+
+    const targetRung = activeRungs.find((r) => r.id === rungId);
+    if (targetRung && targetRung.coils.length >= 1) {
+      toast.error("Egy fokon csak egy kimenet (tekercs) lehet.");
       return;
     }
 
@@ -264,32 +277,28 @@ export const EditorView: React.FC<EditorViewProps> = ({
     const elementData = active.data.current as Partial<LadderElement>;
     const overId = String(over.id);
 
-    // Parse the drop zone ID
-    if (overId.includes('_drop_')) {
-      // It's a branch drop zone: branchId_drop_index or branchId_empty
-      const parts = overId.split('_drop_');
-      if (parts.length === 2) {
-        const branchId = parts[0];
-        const insertIndex = parseInt(parts[1], 10);
-        // Find the rung that contains this branch to pass to the handler
-        const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
-        if (rung) {
-           handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
-        }
-      }
-    } else if (overId.includes('_empty')) {
-       // branchId_empty
-       const branchId = overId.replace('_empty', '');
-       const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
-       if (rung) {
-           handleDropElementOnBranch(rung.id, branchId, 0, elementData);
-       }
-    } else if (overId.includes('_coils_drop')) {
+    if (overId.endsWith('_coils_drop')) {
       // It's a coil drop zone: rungId_coils_drop
-      const rungId = overId.split('_coils_drop')[0];
+      const rungId = overId.replace('_coils_drop', '');
       const rung = activeRungs.find(r => r.id === rungId);
       if (rung) {
         handleDropElementOnCoils(rungId, rung.coils.length, elementData);
+      }
+    } else if (overId.endsWith('_empty')) {
+      // branchId_empty
+      const branchId = overId.replace('_empty', '');
+      const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
+      if (rung) {
+        handleDropElementOnBranch(rung.id, branchId, 0, elementData);
+      }
+    } else if (overId.includes('_drop_')) {
+      // branchId_drop_index
+      const lastIndex = overId.lastIndexOf('_drop_');
+      const branchId = overId.substring(0, lastIndex);
+      const insertIndex = parseInt(overId.substring(lastIndex + 6), 10);
+      const rung = activeRungs.find(r => r.branches.some(b => b.id === branchId));
+      if (rung && !isNaN(insertIndex)) {
+        handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
       }
     }
   };
