@@ -24,15 +24,6 @@
   <body class="bg-slate-900 text-slate-100 antialiased font-sans">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch((err) => {
-            console.log('SW registration skipped or failed:', err);
-          });
-        });
-      }
-    </script>
   </body>
 </html>
 
