@@ -15,7 +15,8 @@ import {
   Undo2,
   Redo2,
   Settings,
-  Printer
+  Printer,
+  HelpCircle
 } from 'lucide-react';
 import { EXAMPLE_PROJECTS, ExampleProject } from '../data/exampleProjects';
 import { ActivePage } from '../types';
@@ -38,6 +39,7 @@ interface NavbarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  onOpenHelp?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -57,7 +59,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onUndo,
   onRedo,
   canUndo = false,
-  canRedo = false
+  canRedo = false,
+  onOpenHelp
 }) => {
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
@@ -206,6 +209,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Settings className="w-4 h-4" /> Beállítások
              </button>
           </div>
+
+          {/* Help Button */}
+          {onOpenHelp && (
+            <div className="relative">
+              <button
+                onClick={onOpenHelp}
+                className="px-3 py-1.5 rounded-lg transition-colors text-sky-400 hover:text-sky-300 hover:bg-slate-800/50 flex items-center gap-1.5 font-semibold"
+                title="Súgó & Dokumentáció (?)"
+              >
+                <HelpCircle className="w-4 h-4 text-sky-400" /> Súgó
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
