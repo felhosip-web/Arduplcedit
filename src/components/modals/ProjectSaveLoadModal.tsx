@@ -36,7 +36,7 @@ import {
 } from '../../types';
 import { DEFAULT_PROTOCOLS } from '../../data/defaultProtocols';
 import { DEFAULT_INTERRUPTS } from '../../data/defaultInterrupts';
-import { loadSlotsFromDb, saveSlotToDb, clearSlotInDb, LocalSlot } from '../../utils/projectIdb';
+import { loadSlotsFromDb, saveSlotToDb, clearSlotInDb, buildPersistableProject, LocalSlot } from '../../utils/projectIdb';
 import toast from 'react-hot-toast';
 
 interface ProjectSaveLoadModalProps {
@@ -175,7 +175,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
       savedAt: new Date().toISOString()
     };
 
-    return {
+    return buildPersistableProject({
       version: '3.5',
       name: projName.trim() || 'Arduino_PLC_Program',
       metadata: updatedMeta,
@@ -192,7 +192,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
       tasks: currentProject?.tasks,
       stateMachines: currentProject?.stateMachines,
       customMacros: currentProject?.customMacros
-    };
+    });
   };
 
   // Export JSON file download

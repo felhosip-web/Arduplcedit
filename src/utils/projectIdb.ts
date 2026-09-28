@@ -27,6 +27,32 @@ export interface LocalSlot {
   name?: string;
 }
 
+/**
+ * Sanitizes and extracts strictly persistable ProjectData fields off the critical path,
+ * excluding transient UI, action logs, or simulation runtime states.
+ */
+export function buildPersistableProject(input: Partial<ProjectData>): ProjectData {
+  return {
+    version: input.version || '3.5',
+    name: input.name || input.metadata?.name || 'Arduino_PLC_Program',
+    metadata: input.metadata,
+    lastModified: input.lastModified || Date.now(),
+    rungs: input.rungs || [],
+    setupRungs: input.setupRungs || [],
+    subroutines: input.subroutines || [],
+    customModules: input.customModules || [],
+    libraries: input.libraries || [],
+    constants: input.constants || [],
+    variables: input.variables || [],
+    arrays: input.arrays || [],
+    protocols: input.protocols || ({} as any),
+    interrupts: input.interrupts || ({} as any),
+    tasks: input.tasks || [],
+    stateMachines: input.stateMachines || [],
+    customMacros: input.customMacros || []
+  };
+}
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 export function openDb(): Promise<IDBDatabase> {
@@ -133,6 +159,31 @@ export async function saveProjectRecord(record: StoredProjectRecord): Promise<vo
   }
 }
 
+/**
+ * Saves autosave record and metadata key in a SINGLE readwrite IndexedDB transaction.
+ */
+export async function saveAutosaveRecordInDb(record: StoredProjectRecord): Promise<void> {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([STORE_PROJECTS, STORE_META], 'readwrite');
+      const projectsStore = tx.objectStore(STORE_PROJECTS);
+      const metaStore = tx.objectStore(STORE_META);
+
+      projectsStore.put(record);
+      metaStore.put({ key: 'lastAutosaveId', value: record.id });
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+    });
+  } catch (err) {
+    console.error(`saveAutosaveRecordInDb hiba (${record.id}):`, err);
+    toast.error('Adatbázis hiba történt az automatikus mentéskor! (IndexedDB)');
+    throw err;
+  }
+}
+
 export async function deleteProjectRecord(id: string): Promise<void> {
   try {
     const db = await openDb();
@@ -163,15 +214,15 @@ export async function migrateFromLocalStorageIfNeeded(): Promise<void> {
       try {
         const parsedData = JSON.parse(rawAutosave);
         if (parsedData) {
+          const sanitized = buildPersistableProject(parsedData);
           const autosaveRecord: StoredProjectRecord = {
             id: AUTOSAVE_ID,
-            name: parsedData.name || 'Arduino_PLC_Autosave',
+            name: sanitized.name || 'Arduino_PLC_Autosave',
             updatedAt: Date.now(),
-            schemaVersion: parsedData.version || '3.5',
-            data: parsedData
+            schemaVersion: sanitized.version || '3.5',
+            data: sanitized
           };
-          await saveProjectRecord(autosaveRecord);
-          await setMetaValue('lastAutosaveId', AUTOSAVE_ID);
+          await saveAutosaveRecordInDb(autosaveRecord);
         }
       } catch (e) {
         console.error('Hiba a localStorage autosave konvertálásakor:', e);
@@ -187,12 +238,13 @@ export async function migrateFromLocalStorageIfNeeded(): Promise<void> {
           for (const slotItem of parsedSlots) {
             if (slotItem && slotItem.slotIndex && slotItem.data) {
               const slotId = `slot_${slotItem.slotIndex}`;
+              const sanitized = buildPersistableProject(slotItem.data);
               const slotRecord: StoredProjectRecord = {
                 id: slotId,
-                name: slotItem.name || slotItem.data.name || `Projekt ${slotItem.slotIndex}`,
+                name: slotItem.name || sanitized.name || `Projekt ${slotItem.slotIndex}`,
                 updatedAt: slotItem.savedAt ? new Date(slotItem.savedAt).getTime() : Date.now(),
-                schemaVersion: slotItem.data.version || '3.5',
-                data: slotItem.data
+                schemaVersion: sanitized.version || '3.5',
+                data: sanitized
               };
               await saveProjectRecord(slotRecord);
             }
@@ -234,33 +286,64 @@ export async function loadAutosaveProject(): Promise<ProjectData | null> {
 }
 
 let autosaveTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let pendingAutosaveData: ProjectData | null = null;
 
-export function saveAutosaveProjectDebounced(data: ProjectData, delayMs: number = 400): void {
+export function saveAutosaveProjectDebounced(data: ProjectData, delayMs: number = 500): void {
+  pendingAutosaveData = buildPersistableProject(data);
+
   if (autosaveTimeoutId !== null) {
     clearTimeout(autosaveTimeoutId);
   }
 
   autosaveTimeoutId = setTimeout(async () => {
-    autosaveTimeoutId = null;
-    try {
-      const record: StoredProjectRecord = {
-        id: AUTOSAVE_ID,
-        name: data.name || data.metadata?.name || 'Arduino_PLC_Program',
-        updatedAt: Date.now(),
-        schemaVersion: data.version || '3.5',
-        data
-      };
-      await saveProjectRecord(record);
-      await setMetaValue('lastAutosaveId', AUTOSAVE_ID);
-    } catch (err) {
-      console.error('IndexedDB autosave failed, falling back to localStorage:', err);
-      try {
-        localStorage.setItem(LOCAL_AUTOSAVE_KEY, JSON.stringify(data));
-      } catch (e) {
-        console.error('LocalStorage save failed:', e);
-      }
-    }
+    await executePendingAutosave();
   }, delayMs);
+}
+
+async function executePendingAutosave(): Promise<void> {
+  if (!pendingAutosaveData) return;
+
+  const dataToSave = pendingAutosaveData;
+  pendingAutosaveData = null;
+  if (autosaveTimeoutId !== null) {
+    clearTimeout(autosaveTimeoutId);
+    autosaveTimeoutId = null;
+  }
+
+  try {
+    const record: StoredProjectRecord = {
+      id: AUTOSAVE_ID,
+      name: dataToSave.name || dataToSave.metadata?.name || 'Arduino_PLC_Program',
+      updatedAt: Date.now(),
+      schemaVersion: dataToSave.version || '3.5',
+      data: dataToSave
+    };
+
+    await saveAutosaveRecordInDb(record);
+  } catch (err) {
+    console.error('IndexedDB autosave failed, mirroring to localStorage as fallback:', err);
+    try {
+      localStorage.setItem(LOCAL_AUTOSAVE_KEY, JSON.stringify(dataToSave));
+    } catch (e) {
+      console.error('LocalStorage save failed:', e);
+    }
+  }
+}
+
+/**
+ * Immediately flushes any pending debounced autosave (e.g. on pagehide/beforeunload/visibilitychange).
+ * Mirrors to localStorage on flush for unload persistence resilience.
+ */
+export async function flushPendingAutosave(): Promise<void> {
+  if (pendingAutosaveData) {
+    const dataToFlush = pendingAutosaveData;
+    await executePendingAutosave();
+    try {
+      localStorage.setItem(LOCAL_AUTOSAVE_KEY, JSON.stringify(dataToFlush));
+    } catch (e) {
+      // Ignore non-critical localStorage errors on flush
+    }
+  }
 }
 
 export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
@@ -275,20 +358,39 @@ export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
   ];
 
   try {
-    const resultSlots: LocalSlot[] = [...defaultSlots];
-    for (let i = 1; i <= 5; i++) {
-      const slotId = `slot_${i}`;
-      const record = await getProjectRecord(slotId);
-      if (record && record.data) {
-        resultSlots[i - 1] = {
-          slotIndex: i,
-          data: record.data,
-          name: record.name || record.data.name || `Projekt ${i}`,
-          savedAt: new Date(record.updatedAt).toLocaleString('hu-HU')
+    const db = await openDb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_PROJECTS, 'readonly');
+      const store = tx.objectStore(STORE_PROJECTS);
+      const resultSlots: LocalSlot[] = [...defaultSlots];
+      let pendingRequests = 5;
+
+      for (let i = 1; i <= 5; i++) {
+        const slotId = `slot_${i}`;
+        const request = store.get(slotId);
+        request.onsuccess = () => {
+          const record = request.result as StoredProjectRecord | undefined;
+          if (record && record.data) {
+            resultSlots[i - 1] = {
+              slotIndex: i,
+              data: record.data,
+              name: record.name || record.data.name || `Projekt ${i}`,
+              savedAt: new Date(record.updatedAt).toLocaleString('hu-HU')
+            };
+          }
+          pendingRequests--;
+          if (pendingRequests === 0) {
+            resolve(resultSlots);
+          }
+        };
+        request.onerror = () => {
+          pendingRequests--;
+          if (pendingRequests === 0) {
+            resolve(resultSlots);
+          }
         };
       }
-    }
-    return resultSlots;
+    });
   } catch (err) {
     console.warn('IDB slots loading failed, falling back to localStorage:', err);
     try {
@@ -307,14 +409,15 @@ export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
 export async function saveSlotToDb(slotIndex: number, projectData: ProjectData): Promise<LocalSlot> {
   const slotId = `slot_${slotIndex}`;
   const now = Date.now();
-  const name = projectData.metadata?.name || projectData.name || `Projekt ${slotIndex}`;
+  const sanitizedData = buildPersistableProject(projectData);
+  const name = sanitizedData.metadata?.name || sanitizedData.name || `Projekt ${slotIndex}`;
 
   const record: StoredProjectRecord = {
     id: slotId,
     name,
     updatedAt: now,
-    schemaVersion: projectData.version || '3.5',
-    data: projectData
+    schemaVersion: sanitizedData.version || '3.5',
+    data: sanitizedData
   };
 
   try {
@@ -329,7 +432,7 @@ export async function saveSlotToDb(slotIndex: number, projectData: ProjectData):
       s.slotIndex === slotIndex
         ? {
             slotIndex,
-            data: projectData,
+            data: sanitizedData,
             name,
             savedAt: new Date(now).toLocaleString('hu-HU')
           }
@@ -342,7 +445,7 @@ export async function saveSlotToDb(slotIndex: number, projectData: ProjectData):
 
   return {
     slotIndex,
-    data: projectData,
+    data: sanitizedData,
     name,
     savedAt: new Date(now).toLocaleString('hu-HU')
   };

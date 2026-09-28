@@ -31,7 +31,7 @@ import { DEFAULT_MACROS } from './data/defaultMacros';
 import { EXAMPLE_PROJECTS, ExampleProject } from './data/exampleProjects';
 import { generateArduinoCode } from './utils/codeGenerator';
 import { runSimulationStep } from './utils/simulator';
-import { loadAutosaveProject, saveAutosaveProjectDebounced, LOCAL_AUTOSAVE_KEY } from './utils/projectIdb';
+import { loadAutosaveProject, saveAutosaveProjectDebounced, flushPendingAutosave, buildPersistableProject, LOCAL_AUTOSAVE_KEY } from './utils/projectIdb';
 
 import { Navbar } from './components/Navbar';
 import { EditorView } from './views/EditorView';
@@ -1114,8 +1114,8 @@ export default function App() {
 
   const { customMacros } = history.present;
 
-  // Structured Project Data for Save/Load Modal
-  const currentProjectData: ProjectData = useMemo(() => ({
+  // Structured Project Data for Save/Load Modal and Autosave
+  const currentProjectData: ProjectData = useMemo(() => buildPersistableProject({
     version: '3.5',
     name: 'Arduino_PLC_Program',
     lastModified: Date.now(),
@@ -1219,8 +1219,31 @@ export default function App() {
   useEffect(() => {
     if (!isInitialLoadedRef.current) return;
 
-    saveAutosaveProjectDebounced(currentProjectData, 400);
+    saveAutosaveProjectDebounced(currentProjectData, 500);
   }, [currentProjectData]);
+
+  // Flush pending autosave immediately on tab exit or hidden visibility
+  useEffect(() => {
+    const handleFlush = () => {
+      flushPendingAutosave();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingAutosave();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleFlush);
+    window.addEventListener('pagehide', handleFlush);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      window.removeEventListener('pagehide', handleFlush);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const handleResetProject = () => {
     if (window.confirm('A jelenlegi projekt törlődni fog. Biztosan új üres projektet szeretnél kezdeni?')) {
