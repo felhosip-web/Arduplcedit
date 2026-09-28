@@ -68,11 +68,23 @@ export function openDb(): Promise<IDBDatabase> {
 
     request.onerror = () => {
       console.error('IndexedDB megnyitási hiba:', request.error);
+      dbPromise = null;
       reject(request.error || new Error('Nem sikerült megnyitni az IndexedDB adatbázist.'));
     };
 
     request.onsuccess = () => {
-      resolve(request.result);
+      const db = request.result;
+
+      // Reset cached connection promise if connection closes or database version changes
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      db.onclose = () => {
+        dbPromise = null;
+      };
+
+      resolve(db);
     };
 
     request.onupgradeneeded = () => {
@@ -100,10 +112,9 @@ export async function getMetaValue<T = any>(key: string): Promise<T | null> {
       const tx = db.transaction(STORE_META, 'readonly');
       const store = tx.objectStore(STORE_META);
       const request = store.get(key);
-      request.onsuccess = () => {
-        resolve(request.result ? request.result.value : null);
-      };
+      request.onsuccess = () => resolve(request.result ? request.result.value : null);
       request.onerror = () => reject(request.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
     });
   } catch (err) {
     console.warn(`getMetaValue hiba (${key}):`, err);
@@ -117,9 +128,10 @@ export async function setMetaValue(key: string, value: any): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_META, 'readwrite');
       const store = tx.objectStore(STORE_META);
-      const request = store.put({ key, value });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      store.put({ key, value });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
     });
   } catch (err) {
     console.warn(`setMetaValue hiba (${key}):`, err);
@@ -135,6 +147,7 @@ export async function getProjectRecord(id: string): Promise<StoredProjectRecord 
       const request = store.get(id);
       request.onsuccess = () => resolve(request.result || null);
       request.onerror = () => reject(request.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
     });
   } catch (err) {
     console.warn(`getProjectRecord hiba (${id}):`, err);
@@ -148,9 +161,10 @@ export async function saveProjectRecord(record: StoredProjectRecord): Promise<vo
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_PROJECTS, 'readwrite');
       const store = tx.objectStore(STORE_PROJECTS);
-      const request = store.put(record);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      store.put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
     });
   } catch (err) {
     console.error(`saveProjectRecord hiba (${record.id}):`, err);
@@ -190,15 +204,20 @@ export async function deleteProjectRecord(id: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_PROJECTS, 'readwrite');
       const store = tx.objectStore(STORE_PROJECTS);
-      const request = store.delete(id);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      store.delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
     });
   } catch (err) {
     console.warn(`deleteProjectRecord hiba (${id}):`, err);
+    throw err;
   }
 }
 
+/**
+ * Single batch transaction migration from localStorage to IndexedDB.
+ */
 export async function migrateFromLocalStorageIfNeeded(): Promise<void> {
   try {
     const isMigratedLocal = localStorage.getItem(LOCAL_MIGRATED_KEY) === '1';
@@ -208,56 +227,69 @@ export async function migrateFromLocalStorageIfNeeded(): Promise<void> {
       return;
     }
 
-    // 1. Migrate Autosave Data
-    const rawAutosave = localStorage.getItem(LOCAL_AUTOSAVE_KEY);
-    if (rawAutosave) {
-      try {
-        const parsedData = JSON.parse(rawAutosave);
-        if (parsedData) {
-          const sanitized = buildPersistableProject(parsedData);
-          const autosaveRecord: StoredProjectRecord = {
-            id: AUTOSAVE_ID,
-            name: sanitized.name || 'Arduino_PLC_Autosave',
-            updatedAt: Date.now(),
-            schemaVersion: sanitized.version || '3.5',
-            data: sanitized
-          };
-          await saveAutosaveRecordInDb(autosaveRecord);
-        }
-      } catch (e) {
-        console.error('Hiba a localStorage autosave konvertálásakor:', e);
-      }
-    }
+    const db = await openDb();
 
-    // 2. Migrate Slots Data
-    const rawSlots = localStorage.getItem(LOCAL_SLOTS_KEY);
-    if (rawSlots) {
-      try {
-        const parsedSlots = JSON.parse(rawSlots);
-        if (Array.isArray(parsedSlots)) {
-          for (const slotItem of parsedSlots) {
-            if (slotItem && slotItem.slotIndex && slotItem.data) {
-              const slotId = `slot_${slotItem.slotIndex}`;
-              const sanitized = buildPersistableProject(slotItem.data);
-              const slotRecord: StoredProjectRecord = {
-                id: slotId,
-                name: slotItem.name || sanitized.name || `Projekt ${slotItem.slotIndex}`,
-                updatedAt: slotItem.savedAt ? new Date(slotItem.savedAt).getTime() : Date.now(),
-                schemaVersion: sanitized.version || '3.5',
-                data: sanitized
-              };
-              await saveProjectRecord(slotRecord);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([STORE_PROJECTS, STORE_META], 'readwrite');
+      const projectsStore = tx.objectStore(STORE_PROJECTS);
+      const metaStore = tx.objectStore(STORE_META);
+
+      // 1. Migrate Autosave Data
+      const rawAutosave = localStorage.getItem(LOCAL_AUTOSAVE_KEY);
+      if (rawAutosave) {
+        try {
+          const parsedData = JSON.parse(rawAutosave);
+          if (parsedData) {
+            const sanitized = buildPersistableProject(parsedData);
+            const autosaveRecord: StoredProjectRecord = {
+              id: AUTOSAVE_ID,
+              name: sanitized.name || 'Arduino_PLC_Autosave',
+              updatedAt: Date.now(),
+              schemaVersion: sanitized.version || '3.5',
+              data: sanitized
+            };
+            projectsStore.put(autosaveRecord);
+            metaStore.put({ key: 'lastAutosaveId', value: AUTOSAVE_ID });
+          }
+        } catch (e) {
+          console.error('Hiba a localStorage autosave konvertálásakor:', e);
+        }
+      }
+
+      // 2. Migrate Slots Data
+      const rawSlots = localStorage.getItem(LOCAL_SLOTS_KEY);
+      if (rawSlots) {
+        try {
+          const parsedSlots = JSON.parse(rawSlots);
+          if (Array.isArray(parsedSlots)) {
+            for (const slotItem of parsedSlots) {
+              if (slotItem && slotItem.slotIndex && slotItem.data) {
+                const slotId = `slot_${slotItem.slotIndex}`;
+                const sanitized = buildPersistableProject(slotItem.data);
+                const slotRecord: StoredProjectRecord = {
+                  id: slotId,
+                  name: slotItem.name || sanitized.name || `Projekt ${slotItem.slotIndex}`,
+                  updatedAt: slotItem.savedAt ? new Date(slotItem.savedAt).getTime() : Date.now(),
+                  schemaVersion: sanitized.version || '3.5',
+                  data: sanitized
+                };
+                projectsStore.put(slotRecord);
+              }
             }
           }
+        } catch (e) {
+          console.error('Hiba a localStorage slotok konvertálásakor:', e);
         }
-      } catch (e) {
-        console.error('Hiba a localStorage slotok konvertálásakor:', e);
       }
-    }
 
-    // Mark as migrated
+      metaStore.put({ key: 'migratedFromLocalStorage', value: true });
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+    });
+
     localStorage.setItem(LOCAL_MIGRATED_KEY, '1');
-    await setMetaValue('migratedFromLocalStorage', true);
   } catch (err) {
     console.error('Migration failed:', err);
   }
@@ -288,7 +320,7 @@ export async function loadAutosaveProject(): Promise<ProjectData | null> {
 let autosaveTimeoutId: ReturnType<typeof setTimeout> | null = null;
 let pendingAutosaveData: ProjectData | null = null;
 
-export function saveAutosaveProjectDebounced(data: ProjectData, delayMs: number = 500): void {
+export function saveAutosaveProjectDebounced(data: ProjectData, delayMs: number = 400): void {
   pendingAutosaveData = buildPersistableProject(data);
 
   if (autosaveTimeoutId !== null) {
@@ -332,20 +364,16 @@ async function executePendingAutosave(): Promise<void> {
 
 /**
  * Immediately flushes any pending debounced autosave (e.g. on pagehide/beforeunload/visibilitychange).
- * Mirrors to localStorage on flush for unload persistence resilience.
  */
 export async function flushPendingAutosave(): Promise<void> {
   if (pendingAutosaveData) {
-    const dataToFlush = pendingAutosaveData;
     await executePendingAutosave();
-    try {
-      localStorage.setItem(LOCAL_AUTOSAVE_KEY, JSON.stringify(dataToFlush));
-    } catch (e) {
-      // Ignore non-critical localStorage errors on flush
-    }
   }
 }
 
+/**
+ * Loads slots from IndexedDB using a single readonly transaction.
+ */
 export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
   await migrateFromLocalStorageIfNeeded();
 
@@ -359,11 +387,10 @@ export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
 
   try {
     const db = await openDb();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_PROJECTS, 'readonly');
       const store = tx.objectStore(STORE_PROJECTS);
       const resultSlots: LocalSlot[] = [...defaultSlots];
-      let pendingRequests = 5;
 
       for (let i = 1; i <= 5; i++) {
         const slotId = `slot_${i}`;
@@ -378,18 +405,12 @@ export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
               savedAt: new Date(record.updatedAt).toLocaleString('hu-HU')
             };
           }
-          pendingRequests--;
-          if (pendingRequests === 0) {
-            resolve(resultSlots);
-          }
-        };
-        request.onerror = () => {
-          pendingRequests--;
-          if (pendingRequests === 0) {
-            resolve(resultSlots);
-          }
         };
       }
+
+      tx.oncomplete = () => resolve(resultSlots);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
     });
   } catch (err) {
     console.warn('IDB slots loading failed, falling back to localStorage:', err);
@@ -406,6 +427,9 @@ export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
   }
 }
 
+/**
+ * Saves a single slot using a single readwrite transaction and returns the constructed LocalSlot directly.
+ */
 export async function saveSlotToDb(slotIndex: number, projectData: ProjectData): Promise<LocalSlot> {
   const slotId = `slot_${slotIndex}`;
   const now = Date.now();
@@ -422,55 +446,62 @@ export async function saveSlotToDb(slotIndex: number, projectData: ProjectData):
 
   try {
     await saveProjectRecord(record);
+    return {
+      slotIndex,
+      data: sanitizedData,
+      name,
+      savedAt: new Date(now).toLocaleString('hu-HU')
+    };
   } catch (err) {
-    console.warn('IDB slot save failed, saving to localStorage as fallback:', err);
-  }
+    console.warn('IDB slot save failed, fallback to localStorage:', err);
+    try {
+      const currentSlots = await loadSlotsFromDb();
+      const updatedSlots = currentSlots.map((s) =>
+        s.slotIndex === slotIndex
+          ? {
+              slotIndex,
+              data: sanitizedData,
+              name,
+              savedAt: new Date(now).toLocaleString('hu-HU')
+            }
+          : s
+      );
+      localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updatedSlots));
+    } catch (e) {
+      console.error('LocalStorage fallback error on slot save:', e);
+    }
 
-  try {
-    const currentSlots = await loadSlotsFromDb();
-    const updatedSlots = currentSlots.map((s) =>
-      s.slotIndex === slotIndex
-        ? {
-            slotIndex,
-            data: sanitizedData,
-            name,
-            savedAt: new Date(now).toLocaleString('hu-HU')
-          }
-        : s
-    );
-    localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updatedSlots));
-  } catch (e) {
-    console.error('LocalStorage fallback error on slot save:', e);
+    return {
+      slotIndex,
+      data: sanitizedData,
+      name,
+      savedAt: new Date(now).toLocaleString('hu-HU')
+    };
   }
-
-  return {
-    slotIndex,
-    data: sanitizedData,
-    name,
-    savedAt: new Date(now).toLocaleString('hu-HU')
-  };
 }
 
+/**
+ * Deletes a single slot in IndexedDB using a single readwrite transaction.
+ */
 export async function clearSlotInDb(slotIndex: number): Promise<void> {
   const slotId = `slot_${slotIndex}`;
   try {
     await deleteProjectRecord(slotId);
   } catch (err) {
-    console.warn('IDB slot clear failed:', err);
-  }
-
-  try {
-    const raw = localStorage.getItem(LOCAL_SLOTS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const updated = parsed.map((s: any) =>
-          s.slotIndex === slotIndex ? { slotIndex, data: null } : s
-        );
-        localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updated));
+    console.warn('IDB slot clear failed, falling back to localStorage:', err);
+    try {
+      const raw = localStorage.getItem(LOCAL_SLOTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.map((s: any) =>
+            s.slotIndex === slotIndex ? { slotIndex, data: null } : s
+          );
+          localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updated));
+        }
       }
+    } catch (e) {
+      console.error('LocalStorage slot clear fallback failed:', e);
     }
-  } catch (e) {
-    console.error('LocalStorage slot clear fallback failed:', e);
   }
 }
