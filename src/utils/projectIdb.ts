@@ -1,6 +1,7 @@
+import * as Comlink from 'comlink';
 import { ProjectData } from '../types';
 import toast from 'react-hot-toast';
-import type { WorkerRequest, WorkerResponse } from './projectIdb.worker';
+import type { ProjectIdbWorkerApi } from './projectIdb.worker';
 
 export const DB_NAME = 'arduplc_db';
 export const DB_VERSION = 1;
@@ -259,118 +260,88 @@ export async function migrateFromLocalStorageDirect(): Promise<void> {
 }
 
 // ============================================================================
-// Web Worker Manager & Facade Interface
+// Comlink Web Worker Proxy Interface
 // ============================================================================
 
-let workerInstance: Worker | null = null;
+let workerProxy: Comlink.Remote<ProjectIdbWorkerApi> | null = null;
 let workerFailed = false;
-let requestIdCounter = 1;
-const pendingWorkerRequests = new Map<
-  number,
-  { resolve: (value: any) => void; reject: (reason?: any) => void }
->();
 
-function getWorker(): Worker | null {
+function getWorkerProxy(): Comlink.Remote<ProjectIdbWorkerApi> | null {
   if (workerFailed) return null;
-  if (workerInstance) return workerInstance;
+  if (workerProxy) return workerProxy;
 
   try {
     if (typeof window !== 'undefined' && typeof window.Worker !== 'undefined') {
-      workerInstance = new Worker(new URL('./projectIdb.worker.ts', import.meta.url), {
+      const rawWorker = new Worker(new URL('./projectIdb.worker.ts', import.meta.url), {
         type: 'module'
       });
 
-      workerInstance.onmessage = (event: MessageEvent<WorkerResponse>) => {
-        const res = event.data;
-        if (!res || typeof res.id !== 'number') return;
-
-        const pending = pendingWorkerRequests.get(res.id);
-        if (pending) {
-          pendingWorkerRequests.delete(res.id);
-          if (res.success) {
-            pending.resolve('payload' in res ? res.payload : undefined);
-          } else {
-            pending.reject(new Error((res as any).error || 'Worker művelet sikertelen.'));
-          }
-        }
-      };
-
-      workerInstance.onerror = (err) => {
+      rawWorker.onerror = (err) => {
         console.warn('ProjectIdb Worker hiba történt, áttérés a főszálra:', err);
         workerFailed = true;
-        workerInstance = null;
-        pendingWorkerRequests.forEach((p) => p.reject(new Error('Worker összeomlott.')));
-        pendingWorkerRequests.clear();
+        workerProxy = null;
       };
 
-      return workerInstance;
+      workerProxy = Comlink.wrap<ProjectIdbWorkerApi>(rawWorker);
+      return workerProxy;
     }
   } catch (e) {
-    console.warn('Nem sikerült elindítani az IndexedDB Web Worker-t, főszál használata:', e);
+    console.warn('Nem sikerült elindítani az IndexedDB Web Worker-t Comlink-kel, főszál használata:', e);
     workerFailed = true;
-    workerInstance = null;
+    workerProxy = null;
   }
 
   return null;
 }
 
-function callWorker<T>(type: WorkerRequest['type'], payload?: any): Promise<T> {
-  const worker = getWorker();
-  if (!worker) {
-    return Promise.reject(new Error('Worker nem érhető el'));
-  }
-
-  const id = requestIdCounter++;
-  return new Promise<T>((resolve, reject) => {
-    pendingWorkerRequests.set(id, { resolve, reject });
-    worker.postMessage({ id, type, payload } as WorkerRequest);
-  });
-}
-
 /**
- * Migration trigger using Worker if available, with in-page direct fallback.
+ * Migration trigger using Comlink Worker if available, with in-page direct fallback.
  */
 export async function migrateFromLocalStorageIfNeeded(): Promise<void> {
-  try {
-    const isMigratedLocal = localStorage.getItem(LOCAL_MIGRATED_KEY) === '1';
-    const rawAutosave = localStorage.getItem(LOCAL_AUTOSAVE_KEY);
-    const rawSlots = localStorage.getItem(LOCAL_SLOTS_KEY);
+  const proxy = getWorkerProxy();
+  if (proxy) {
+    try {
+      const isMigratedLocal = localStorage.getItem(LOCAL_MIGRATED_KEY) === '1';
+      const rawAutosave = localStorage.getItem(LOCAL_AUTOSAVE_KEY);
+      const rawSlots = localStorage.getItem(LOCAL_SLOTS_KEY);
 
-    const result = await callWorker<{ setMigratedLocal: boolean }>('MIGRATE_IF_NEEDED', {
-      rawAutosave,
-      rawSlots,
-      isMigratedLocal
-    });
-
-    if (result && result.setMigratedLocal) {
-      localStorage.setItem(LOCAL_MIGRATED_KEY, '1');
+      const result = await proxy.migrateIfNeeded({ rawAutosave, rawSlots, isMigratedLocal });
+      if (result && result.setMigratedLocal) {
+        localStorage.setItem(LOCAL_MIGRATED_KEY, '1');
+      }
+      return;
+    } catch (err) {
+      console.warn('Comlink migrateIfNeeded failed, falling back to direct IDB:', err);
     }
-  } catch (err) {
-    // Fallback to direct main-thread migration
-    await migrateFromLocalStorageDirect();
   }
+
+  await migrateFromLocalStorageDirect();
 }
 
 /**
- * Load autosave project using Worker, falling back to direct IDB / localStorage.
+ * Load autosave project using Comlink Worker, falling back to direct IDB / localStorage.
  */
 export async function loadAutosaveProject(): Promise<ProjectData | null> {
   await migrateFromLocalStorageIfNeeded();
 
-  try {
-    const data = await callWorker<ProjectData | null>('LOAD_AUTOSAVE');
-    if (data) return data;
-  } catch (err) {
-    console.warn('Worker LOAD_AUTOSAVE sikertelen, fallback direct IDB-re:', err);
+  const proxy = getWorkerProxy();
+  if (proxy) {
     try {
-      const lastAutosaveId = (await getMetaValueDirect<string>('lastAutosaveId')) || AUTOSAVE_ID;
-      const record = await getProjectRecordDirect(lastAutosaveId);
-      if (record && record.data) {
-        return record.data;
-      }
-    } catch (e) {
-      console.warn('Direct IDB LOAD_AUTOSAVE error:', e);
+      const data = await proxy.loadAutosave();
+      if (data) return data;
+    } catch (err) {
+      console.warn('Comlink loadAutosave failed, falling back to direct IDB:', err);
     }
+  }
+
+  try {
+    const lastAutosaveId = (await getMetaValueDirect<string>('lastAutosaveId')) || AUTOSAVE_ID;
+    const record = await getProjectRecordDirect(lastAutosaveId);
+    if (record && record.data) {
+      return record.data;
+    }
+  } catch (e) {
+    console.warn('Direct IDB loadAutosave error:', e);
   }
 
   // Fallback to localStorage
@@ -416,20 +387,26 @@ async function executePendingAutosave(): Promise<void> {
     data: dataToSave
   };
 
-  try {
-    await callWorker('SAVE_AUTOSAVE', { record });
-  } catch (workerErr) {
-    // Fallback to direct IDB
+  const proxy = getWorkerProxy();
+  if (proxy) {
     try {
-      await saveAutosaveRecordInDbDirect(record);
-    } catch (dbErr) {
-      console.error('IndexedDB autosave failed, mirroring to localStorage as fallback:', dbErr);
-      try {
-        localStorage.setItem(LOCAL_AUTOSAVE_KEY, JSON.stringify(dataToSave));
-      } catch (lsErr) {
-        console.error('LocalStorage save failed:', lsErr);
-        toast.error('Adatbázis hiba történt az automatikus mentéskor! (IndexedDB)');
-      }
+      await proxy.saveAutosave(record);
+      return;
+    } catch (workerErr) {
+      console.warn('Comlink saveAutosave failed, falling back to direct IDB:', workerErr);
+    }
+  }
+
+  // Fallback to direct IDB / localStorage
+  try {
+    await saveAutosaveRecordInDbDirect(record);
+  } catch (dbErr) {
+    console.error('IndexedDB autosave failed, mirroring to localStorage as fallback:', dbErr);
+    try {
+      localStorage.setItem(LOCAL_AUTOSAVE_KEY, JSON.stringify(dataToSave));
+    } catch (lsErr) {
+      console.error('LocalStorage save failed:', lsErr);
+      toast.error('Adatbázis hiba történt az automatikus mentéskor! (IndexedDB)');
     }
   }
 }
@@ -440,26 +417,32 @@ async function executePendingAutosave(): Promise<void> {
 export async function flushPendingAutosave(): Promise<void> {
   if (pendingAutosaveData) {
     await executePendingAutosave();
-  } else if (!workerFailed && workerInstance) {
-    try {
-      await callWorker('FLUSH');
-    } catch (e) {
-      // ignore
+  } else {
+    const proxy = getWorkerProxy();
+    if (proxy) {
+      try {
+        await proxy.flushPendingAutosave();
+      } catch (e) {
+        // ignore
+      }
     }
   }
 }
 
 /**
- * Loads slots via Worker or direct IDB / localStorage fallback.
+ * Loads slots via Comlink Worker or direct IDB / localStorage fallback.
  */
 export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
   await migrateFromLocalStorageIfNeeded();
 
-  try {
-    const slots = await callWorker<LocalSlot[]>('LOAD_SLOTS');
-    if (slots) return slots;
-  } catch (err) {
-    console.warn('Worker LOAD_SLOTS failed, falling back to direct IDB:', err);
+  const proxy = getWorkerProxy();
+  if (proxy) {
+    try {
+      const slots = await proxy.loadSlots();
+      if (slots) return slots;
+    } catch (err) {
+      console.warn('Comlink loadSlots failed, falling back to direct IDB:', err);
+    }
   }
 
   const defaultSlots: LocalSlot[] = [
@@ -513,54 +496,58 @@ export async function loadSlotsFromDb(): Promise<LocalSlot[]> {
 }
 
 /**
- * Saves a slot via Worker or direct IDB / localStorage fallback.
+ * Saves a slot via Comlink Worker or direct IDB / localStorage fallback.
  */
 export async function saveSlotToDb(slotIndex: number, projectData: ProjectData): Promise<LocalSlot> {
   const sanitizedData = buildPersistableProject(projectData);
   const now = Date.now();
   const name = sanitizedData.metadata?.name || sanitizedData.name || `Projekt ${slotIndex}`;
 
-  try {
-    const slot = await callWorker<LocalSlot>('SAVE_SLOT', { slotIndex, projectData: sanitizedData });
-    if (slot) return slot;
-  } catch (workerErr) {
-    console.warn('Worker SAVE_SLOT failed, falling back to direct IDB:', workerErr);
-    const slotId = `slot_${slotIndex}`;
-    const record: StoredProjectRecord = {
-      id: slotId,
-      name,
-      updatedAt: now,
-      schemaVersion: sanitizedData.version || '3.5',
-      data: sanitizedData
-    };
-
+  const proxy = getWorkerProxy();
+  if (proxy) {
     try {
-      await saveProjectRecordDirect(record);
-      return {
-        slotIndex,
-        data: sanitizedData,
-        name,
-        savedAt: new Date(now).toLocaleString('hu-HU')
-      };
-    } catch (dbErr) {
-      console.warn('Direct IDB slot save failed, fallback to localStorage:', dbErr);
-      toast.error('Adatbázis hiba történt a rekesz mentésekor! (IndexedDB)');
-      try {
-        const currentSlots = await loadSlotsFromDb();
-        const updatedSlots = currentSlots.map((s) =>
-          s.slotIndex === slotIndex
-            ? {
-                slotIndex,
-                data: sanitizedData,
-                name,
-                savedAt: new Date(now).toLocaleString('hu-HU')
-              }
-            : s
-        );
-        localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updatedSlots));
-      } catch (e) {
-        console.error('LocalStorage fallback error on slot save:', e);
-      }
+      const slot = await proxy.saveSlot(slotIndex, sanitizedData);
+      if (slot) return slot;
+    } catch (workerErr) {
+      console.warn('Comlink saveSlot failed, falling back to direct IDB:', workerErr);
+    }
+  }
+
+  const slotId = `slot_${slotIndex}`;
+  const record: StoredProjectRecord = {
+    id: slotId,
+    name,
+    updatedAt: now,
+    schemaVersion: sanitizedData.version || '3.5',
+    data: sanitizedData
+  };
+
+  try {
+    await saveProjectRecordDirect(record);
+    return {
+      slotIndex,
+      data: sanitizedData,
+      name,
+      savedAt: new Date(now).toLocaleString('hu-HU')
+    };
+  } catch (dbErr) {
+    console.warn('Direct IDB slot save failed, fallback to localStorage:', dbErr);
+    toast.error('Adatbázis hiba történt a rekesz mentésekor! (IndexedDB)');
+    try {
+      const currentSlots = await loadSlotsFromDb();
+      const updatedSlots = currentSlots.map((s) =>
+        s.slotIndex === slotIndex
+          ? {
+              slotIndex,
+              data: sanitizedData,
+              name,
+              savedAt: new Date(now).toLocaleString('hu-HU')
+            }
+          : s
+      );
+      localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updatedSlots));
+    } catch (e) {
+      console.error('LocalStorage fallback error on slot save:', e);
     }
   }
 
@@ -573,34 +560,38 @@ export async function saveSlotToDb(slotIndex: number, projectData: ProjectData):
 }
 
 /**
- * Clears a slot via Worker or direct IDB / localStorage fallback.
+ * Clears a slot via Comlink Worker or direct IDB / localStorage fallback.
  */
 export async function clearSlotInDb(slotIndex: number): Promise<void> {
-  try {
-    await callWorker('CLEAR_SLOT', { slotIndex });
-    return;
-  } catch (workerErr) {
-    console.warn('Worker CLEAR_SLOT failed, falling back to direct IDB:', workerErr);
-    const slotId = `slot_${slotIndex}`;
+  const proxy = getWorkerProxy();
+  if (proxy) {
     try {
-      await deleteProjectRecordDirect(slotId);
+      await proxy.clearSlot(slotIndex);
       return;
-    } catch (dbErr) {
-      console.warn('Direct IDB slot clear failed, falling back to localStorage:', dbErr);
-      try {
-        const raw = localStorage.getItem(LOCAL_SLOTS_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            const updated = parsed.map((s: any) =>
-              s.slotIndex === slotIndex ? { slotIndex, data: null } : s
-            );
-            localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updated));
-          }
+    } catch (workerErr) {
+      console.warn('Comlink clearSlot failed, falling back to direct IDB:', workerErr);
+    }
+  }
+
+  const slotId = `slot_${slotIndex}`;
+  try {
+    await deleteProjectRecordDirect(slotId);
+    return;
+  } catch (dbErr) {
+    console.warn('Direct IDB slot clear failed, falling back to localStorage:', dbErr);
+    try {
+      const raw = localStorage.getItem(LOCAL_SLOTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.map((s: any) =>
+            s.slotIndex === slotIndex ? { slotIndex, data: null } : s
+          );
+          localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updated));
         }
-      } catch (e) {
-        console.error('LocalStorage slot clear fallback failed:', e);
       }
+    } catch (e) {
+      console.error('LocalStorage slot clear fallback failed:', e);
     }
   }
 }
