@@ -31,6 +31,7 @@ import { DEFAULT_MACROS } from './data/defaultMacros';
 import { EXAMPLE_PROJECTS, ExampleProject } from './data/exampleProjects';
 import { generateArduinoCode } from './utils/codeGenerator';
 import { runSimulationStep } from './utils/simulator';
+import { loadAutosaveProject, saveAutosaveProjectDebounced, flushPendingAutosave, buildPersistableProject, LOCAL_AUTOSAVE_KEY } from './utils/projectIdb';
 
 import { Navbar } from './components/Navbar';
 import { EditorView } from './views/EditorView';
@@ -47,8 +48,6 @@ import { HardwareMapModal } from './components/modals/HardwareMapModal';
 import { MobileBlockScreen } from './components/MobileBlockScreen';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { extractPinUsages, analyzePinConflicts, ARDUINO_UNO_PINS } from './utils/hardwareMapUtils';
-
-const STORAGE_KEY = 'arduino_plc_ladder_project_v3';
 
 const INITIAL_SIMULATION_STATE: SimulationState = {
   isRunning: false,
@@ -386,7 +385,7 @@ export default function App() {
   // Cache parsed initial state to avoid multiple localStorage parsing (for non-store states)
   const initialSavedState = useMemo(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(LOCAL_AUTOSAVE_KEY);
       if (saved) {
         return JSON.parse(saved);
       }
@@ -454,17 +453,6 @@ export default function App() {
     }
   }, [rungs, setupRungs, subroutines, protocols, interrupts, variables]);
 
-  // Save to LocalStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ rungs, setupRungs, subroutines, customModules, libraries, constants, variables, arrays, protocols, interrupts })
-      );
-    } catch (e) {
-      console.error('Storage save error:', e);
-    }
-  }, [rungs, setupRungs, subroutines, customModules, libraries, constants, variables, arrays, protocols, interrupts]);
 
   // Simulation Loop
   const lastTimeRef = useRef<number>(Date.now());
@@ -1124,9 +1112,11 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // Structured Project Data for Save/Load Modal
-  const currentProjectData: ProjectData = {
-    version: '3.1.0',
+  const { customMacros } = history.present;
+
+  // Structured Project Data for Save/Load Modal and Autosave
+  const currentProjectData: ProjectData = useMemo(() => buildPersistableProject({
+    version: '3.5',
     name: 'Arduino_PLC_Program',
     lastModified: Date.now(),
     rungs,
@@ -1138,10 +1128,27 @@ export default function App() {
     variables,
     arrays,
     protocols,
-    interrupts
-  };
+    interrupts,
+    tasks,
+    stateMachines,
+    customMacros
+  }), [
+    rungs,
+    setupRungs,
+    subroutines,
+    customModules,
+    libraries,
+    constants,
+    variables,
+    arrays,
+    protocols,
+    interrupts,
+    tasks,
+    stateMachines,
+    customMacros
+  ]);
 
-  const handleLoadProject = (project: ProjectData) => {
+  const handleLoadProject = useCallback((project: ProjectData) => {
     try {
       const migrated = migrateProjectData(project);
       clearLadderHistory({
@@ -1152,7 +1159,10 @@ export default function App() {
         constants: migrated.constants,
         arrays: migrated.arrays,
         protocols: migrated.protocols,
-        interrupts: migrated.interrupts
+        interrupts: migrated.interrupts,
+        tasks: migrated.tasks,
+        stateMachines: migrated.stateMachines,
+        customMacros: migrated.customMacros
       });
       if (migrated.customModules) setCustomModules(migrated.customModules);
       if (migrated.libraries) setLibraries(migrated.libraries);
@@ -1178,7 +1188,62 @@ export default function App() {
       console.error('Projekt betöltési hiba:', err);
       toast.error(err instanceof Error ? err.message : 'Hibás vagy sérült projekt adatok!');
     }
-  };
+  }, [clearLadderHistory, setCustomModules, setLibraries, setSimulationState]);
+
+  // Initial startup load from IndexedDB (with localStorage fallback and migration)
+  const isInitialLoadedRef = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    loadAutosaveProject()
+      .then((savedProject) => {
+        if (!isMounted) return;
+        if (savedProject) {
+          handleLoadProject(savedProject);
+        }
+        isInitialLoadedRef.current = true;
+      })
+      .catch((err) => {
+        console.error('Initial IDB load failed:', err);
+        if (isMounted) {
+          isInitialLoadedRef.current = true;
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [handleLoadProject]);
+
+  // Debounced Autosave to IndexedDB
+  useEffect(() => {
+    if (!isInitialLoadedRef.current) return;
+
+    saveAutosaveProjectDebounced(currentProjectData, 500);
+  }, [currentProjectData]);
+
+  // Flush pending autosave immediately on tab exit or hidden visibility
+  useEffect(() => {
+    const handleFlush = () => {
+      flushPendingAutosave();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingAutosave();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleFlush);
+    window.addEventListener('pagehide', handleFlush);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      window.removeEventListener('pagehide', handleFlush);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const handleResetProject = () => {
     if (window.confirm('A jelenlegi projekt törlődni fog. Biztosan új üres projektet szeretnél kezdeni?')) {
