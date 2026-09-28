@@ -391,7 +391,7 @@ export interface RTCConfig {
   syncIntervalSec: number;    // Cyclic update interval into variables (e.g. 1 sec)
   autoSyncCompileTime: boolean;// If lost power, rtc.adjust(DateTime(F(__DATE__), F(__TIME__)))
   enableSquareWave1Hz?: boolean;// Enable 1Hz SQW output for precision cycle interrupt
-  targetVariables: {
+  targetVariables?: {
     year: string;             // e.g. "RTC_YEAR"
     month: string;            // e.g. "RTC_MONTH"
     day: string;              // e.g. "RTC_DAY"
@@ -641,6 +641,7 @@ export interface ProjectData {
   interrupts: InterruptsConfig;
   tasks?: Task[];
   stateMachines?: StateMachine[];
+  customMacros?: CustomLadderMacro[];
 }
 
 export interface UartLogEntry {

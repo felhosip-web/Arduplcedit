@@ -36,15 +36,8 @@ import {
 } from '../../types';
 import { DEFAULT_PROTOCOLS } from '../../data/defaultProtocols';
 import { DEFAULT_INTERRUPTS } from '../../data/defaultInterrupts';
-
-interface LocalSlot {
-  slotIndex: number;
-  data: ProjectData | null;
-  savedAt?: string;
-  name?: string;
-}
-
-const LOCAL_SLOTS_KEY = 'arduino_plc_saved_slots_v1';
+import { loadSlotsFromDb, saveSlotToDb, clearSlotInDb, LocalSlot } from '../../utils/projectIdb';
+import toast from 'react-hot-toast';
 
 interface ProjectSaveLoadModalProps {
   isOpen: boolean;
@@ -135,20 +128,24 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
     { slotIndex: 5, data: null }
   ]);
 
-  // Load saved slots from localStorage
+  // Load saved slots from IndexedDB (with localStorage fallback)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LOCAL_SLOTS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSlots(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load slots from storage', e);
+    if (isOpen) {
+      let isMounted = true;
+      loadSlotsFromDb()
+        .then((loadedSlots) => {
+          if (isMounted && loadedSlots && loadedSlots.length > 0) {
+            setSlots(loadedSlots);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load slots from IndexedDB', err);
+        });
+      return () => {
+        isMounted = false;
+      };
     }
-  }, []);
+  }, [isOpen]);
 
   // Update initial form values when opening
   useEffect(() => {
@@ -191,7 +188,10 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
       variables: effectiveVariables,
       arrays: effectiveArrays,
       protocols: effectiveProtocols,
-      interrupts: effectiveInterrupts
+      interrupts: effectiveInterrupts,
+      tasks: currentProject?.tasks,
+      stateMachines: currentProject?.stateMachines,
+      customMacros: currentProject?.customMacros
     };
   };
 
@@ -294,27 +294,19 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
     }, 800);
   };
 
-  // Save to browser slot
-  const handleSaveToSlot = (slotIdx: number) => {
-    const projData = buildCurrentProjectData();
-    const projTitle = projData.metadata?.name || projData.name || `Projekt ${slotIdx}`;
-    const updated = slots.map((s) =>
-      s.slotIndex === slotIdx
-        ? {
-            slotIndex: slotIdx,
-            data: projData,
-            name: projTitle,
-            savedAt: new Date().toLocaleString('hu-HU')
-          }
-        : s
-    );
-    setSlots(updated);
+  // Save to browser slot using IndexedDB
+  const handleSaveToSlot = async (slotIdx: number) => {
     try {
-      localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updated));
+      const projData = buildCurrentProjectData();
+      const updatedSlot = await saveSlotToDb(slotIdx, projData);
+      setSlots((prev) =>
+        prev.map((s) => (s.slotIndex === slotIdx ? updatedSlot : s))
+      );
       setSuccessNotice(`Projekt elmentve a(z) ${slotIdx}. mentési rekeszbe!`);
       setTimeout(() => setSuccessNotice(null), 3000);
     } catch (e) {
-      console.error(e);
+      console.error('Hiba a slot mentésekor:', e);
+      toast.error('Hiba történt a slot mentése közben!');
     }
   };
 
@@ -329,14 +321,18 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
     }, 800);
   };
 
-  // Clear slot
-  const handleClearSlot = (slotIdx: number) => {
-    const updated = slots.map((s) => (s.slotIndex === slotIdx ? { slotIndex: slotIdx, data: null } : s));
-    setSlots(updated);
+  // Clear slot using IndexedDB
+  const handleClearSlot = async (slotIdx: number) => {
     try {
-      localStorage.setItem(LOCAL_SLOTS_KEY, JSON.stringify(updated));
+      await clearSlotInDb(slotIdx);
+      setSlots((prev) =>
+        prev.map((s) => (s.slotIndex === slotIdx ? { slotIndex: slotIdx, data: null } : s))
+      );
+      setSuccessNotice(`A(z) ${slotIdx}. mentési rekesz törölve.`);
+      setTimeout(() => setSuccessNotice(null), 3000);
     } catch (e) {
-      console.error(e);
+      console.error('Hiba a slot törlésekor:', e);
+      toast.error('Hiba történt a slot törlése közben!');
     }
   };
 
@@ -516,26 +512,26 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
                     <Layers className="w-4 h-4 text-sky-400 mx-auto mb-1" />
-                    <div className="text-base font-bold text-slate-200">{rungs.length} db</div>
+                    <div className="text-base font-bold text-slate-200">{(rungs?.length || 0)} db</div>
                     <div className="text-[10px] text-slate-400">Fő Létrafok</div>
                   </div>
 
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
                     <Sparkles className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                    <div className="text-base font-bold text-slate-200">{setupRungs.length} db</div>
+                    <div className="text-base font-bold text-slate-200">{(setupRungs?.length || 0)} db</div>
                     <div className="text-[10px] text-slate-400">Setup Létrafok</div>
                   </div>
 
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
                     <Cpu className="w-4 h-4 text-indigo-400 mx-auto mb-1" />
-                    <div className="text-base font-bold text-slate-200">{subroutines.length} db</div>
+                    <div className="text-base font-bold text-slate-200">{(subroutines?.length || 0)} db</div>
                     <div className="text-[10px] text-slate-400">Alprogram (FC)</div>
                   </div>
 
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
                     <Activity className="w-4 h-4 text-teal-400 mx-auto mb-1" />
                     <div className="text-base font-bold text-slate-200">
-                      {variables.length + constants.length} db
+                      {(variables?.length || 0) + (constants?.length || 0)} db
                     </div>
                     <div className="text-[10px] text-slate-400">Változó / Reg.</div>
                   </div>
@@ -543,9 +539,9 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
                     <Zap className="w-4 h-4 text-rose-400 mx-auto mb-1" />
                     <div className="text-base font-bold text-slate-200">
-                      {(interrupts.int0.enabled ? 1 : 0) +
-                        (interrupts.int1.enabled ? 1 : 0) +
-                        (interrupts.timer1.enabled ? 1 : 0)} aktív
+                      {((interrupts?.int0?.enabled) ? 1 : 0) +
+                        ((interrupts?.int1?.enabled) ? 1 : 0) +
+                        ((interrupts?.timer1?.enabled) ? 1 : 0)} aktív
                     </div>
                     <div className="text-[10px] text-slate-400">Megszakítás</div>
                   </div>
@@ -553,7 +549,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
                     <FileCode className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
                     <div className="text-base font-bold text-slate-200">
-                      {libraries.filter((l) => l.enabled).length} db
+                      {libraries?.filter((l) => l.enabled)?.length || 0} db
                     </div>
                     <div className="text-[10px] text-slate-400">Könyvtár</div>
                   </div>
@@ -749,7 +745,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
                             </span>
                             {hasData && (
                               <span className="px-2 py-0.2 rounded text-[10px] font-mono bg-slate-800 text-slate-300">
-                                {slot.data?.rungs.length} létrafok
+                                {slot.data?.rungs?.length || 0} létrafok
                               </span>
                             )}
                           </div>
