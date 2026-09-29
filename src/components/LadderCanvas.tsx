@@ -69,12 +69,16 @@ const ZoomControlsOverlay: React.FC = () => {
 };
 
 // Wheel zoom container wrapper enforcing Ctrl+wheel fine-grained zoom
-const CanvasWheelHandler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+interface CanvasWheelHandlerProps {
+  children: React.ReactNode;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const CanvasWheelHandler: React.FC<CanvasWheelHandlerProps> = ({ children, scrollContainerRef }) => {
   const { zoomToPoint, instance } = useControls();
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = scrollContainerRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
@@ -104,13 +108,13 @@ const CanvasWheelHandler: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [zoomToPoint, instance]);
+  }, [zoomToPoint, instance, scrollContainerRef]);
 
   return (
     <div
-      ref={containerRef}
+      ref={scrollContainerRef}
       id="ladder-canvas-container"
-      className="flex-1 bg-slate-950 overflow-hidden relative select-none h-full w-full"
+      className="flex-1 bg-slate-950 overflow-y-auto relative select-none h-full w-full"
     >
       {children}
     </div>
@@ -141,8 +145,8 @@ interface LadderCanvasProps {
   onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
 }
 
-// --- Inner Memoized Component for each Rung (Virtualization/Memoization) ---
-interface RungRowProps {
+// --- Inner Memoized Presentational Component for each Rung ---
+export interface RungRowProps {
   rung: Rung;
   rIndex: number;
   isSelected: boolean;
@@ -172,7 +176,7 @@ interface RungRowProps {
   onContextMenuOpen: (e: React.MouseEvent, element: LadderElement) => void;
 }
 
-const RungRow: React.FC<RungRowProps> = React.memo(({
+export const RungRow: React.FC<RungRowProps> = React.memo(({
   rung,
   rIndex,
   isSelected,
@@ -201,31 +205,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
   totalRungsCount,
   onContextMenuOpen
 }) => {
-  const [isVisible, setIsVisible] = useState(true);
-  const rowRef = useRef<HTMLDivElement>(null);
   const [editingCommentRungId, setEditingCommentRungId] = useState<string | null>(null);
-
-  // Intersection Observer for Virtualization
-  useEffect(() => {
-    if (!rowRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          setIsVisible(entry.isIntersecting);
-        });
-      },
-      { rootMargin: '200px 0px' }
-    );
-    observer.observe(rowRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  // Use a fixed height placeholder if the rung is off-screen
-  if (!isVisible) {
-    return (
-      <div ref={rowRef} className="h-32 bg-slate-900/20 border border-slate-800 rounded-xl mb-6"></div>
-    );
-  }
 
   const isRungEnergized = simulationState.isRunning && (
     isSetupSection
@@ -266,7 +246,7 @@ const RungRow: React.FC<RungRowProps> = React.memo(({
 
   return (
     <div
-      ref={rowRef}
+      id={rung.id}
       onClick={() => onSelectRung(rIndex)}
       className={`rounded-xl border transition-all ${
         isSelected
@@ -599,6 +579,17 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   onCrossReference,
   onForceInput
 }) => {
+  /**
+   * Intended vertical scroll container for TanStack Virtual in P1.
+   *
+   * Why this element is chosen as the scroll container:
+   * 1. It is the outer viewport wrapper (#ladder-canvas-container) that wraps the zoom/pan transform layer.
+   * 2. Non-Ctrl mouse wheel events natively scroll this container vertically, while Ctrl+wheel handles canvas zoom.
+   * 3. It provides a stable, unscaled scroll viewport where `scrollTop`, `clientHeight`, and `scrollHeight`
+   *    can be reliably queried by TanStack Virtual in P1 via `getScrollElement: () => scrollContainerRef.current`.
+   */
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const dragTargetRef = useRef<string | null>(null);
   const rafId = useRef<number | null>(null);
@@ -670,7 +661,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
       centerZoomedOut={false}
       limitToBounds={false}
     >
-      <CanvasWheelHandler>
+      <CanvasWheelHandler scrollContainerRef={scrollContainerRef}>
         <ZoomControlsOverlay />
 
         {contextMenuInfo && (
