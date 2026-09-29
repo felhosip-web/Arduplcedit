@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
 import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
@@ -556,6 +557,193 @@ export const RungRow: React.FC<RungRowProps> = React.memo(({
   );
 });
 
+interface VirtualizedRungsListProps {
+  rungs: Rung[];
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  selectedRungIndex: number;
+  selectedElementIds: string[];
+  searchQuery?: string;
+  simulationState: SimulationState;
+  isSetupSection: boolean;
+  validationErrors: ValidationError[];
+  onSelectRung: (index: number) => void;
+  onSelectElement: (el: LadderElement, e?: React.MouseEvent) => void;
+  onDeleteElement: (id: string) => void;
+  onMoveRung: (id: string, direction: 'up' | 'down') => void;
+  onUpdateRungComment: (id: string, comment: string) => void;
+  onAddParallelBranch: (rungId: string) => void;
+  onDeleteParallelBranch: (rungId: string, branchId: string) => void;
+  onDropElementOnBranch: (rungId: string, branchId: string, index: number, elementData: Partial<LadderElement>) => void;
+  onDropElementOnCoils: (rungId: string, index: number, elementData: Partial<LadderElement>) => void;
+  onDragOver: (e: React.DragEvent, targetId: string) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  dragOverTarget: string | null;
+  onDuplicateRung: (id: string) => void;
+  onDeleteRung: (id: string) => void;
+  onTunePid?: (el: LadderElement) => void;
+  onCrossReference?: (el: LadderElement) => void;
+  onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
+  onContextMenuOpen: (e: React.MouseEvent, element: LadderElement) => void;
+}
+
+const VirtualizedRungsList: React.FC<VirtualizedRungsListProps> = ({
+  rungs,
+  scrollContainerRef,
+  selectedRungIndex,
+  selectedElementIds,
+  searchQuery,
+  simulationState,
+  isSetupSection,
+  validationErrors,
+  onSelectRung,
+  onSelectElement,
+  onDeleteElement,
+  onMoveRung,
+  onUpdateRungComment,
+  onAddParallelBranch,
+  onDeleteParallelBranch,
+  onDropElementOnBranch,
+  onDropElementOnCoils,
+  onDragOver,
+  onDragLeave,
+  dragOverTarget,
+  onDuplicateRung,
+  onDeleteRung,
+  onTunePid,
+  onCrossReference,
+  onForceInput,
+  onContextMenuOpen
+}) => {
+  const transformState = useTransformComponent(({ state }) => state);
+  const scale = transformState?.scale ?? 1;
+  const positionY = transformState?.positionY ?? 0;
+
+  const scaleRef = useRef(scale);
+  const posYRef = useRef(positionY);
+  scaleRef.current = scale;
+  posYRef.current = positionY;
+
+  const getItemKey = useCallback((index: number) => rungs[index]?.id ?? index, [rungs]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: rungs.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 160,
+    overscan: 5,
+    getItemKey,
+    initialRect: { width: 1000, height: Math.round(800 / Math.max(0.1, scale)) },
+    observeElementOffset: (instance, cb) => {
+      const el = instance.scrollElement;
+      if (!el) return;
+      const calculate = () => {
+        const s = scaleRef.current || 1;
+        const py = posYRef.current || 0;
+        const offset = Math.max(0, (el.scrollTop - py) / s);
+        cb(offset, false);
+      };
+      calculate();
+      el.addEventListener('scroll', calculate, { passive: true });
+      return () => el.removeEventListener('scroll', calculate);
+    },
+    observeElementRect: (instance, cb) => {
+      const el = instance.scrollElement;
+      if (!el) return;
+      const calculate = () => {
+        const s = scaleRef.current || 1;
+        const width = el.clientWidth || 1000;
+        const height = (el.clientHeight || 800) / s;
+        cb({ width: Math.round(width), height: Math.round(height) });
+      };
+      calculate();
+      const ro = new ResizeObserver(calculate);
+      ro.observe(el);
+      return () => ro.disconnect();
+    },
+  });
+
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [scale, positionY, rowVirtualizer]);
+
+  if (rungs.length === 0) {
+    return (
+      <div className="py-12 px-4 text-center space-y-3">
+        <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+          <Plus className="w-6 h-6" />
+        </div>
+        <h4 className="text-sm font-bold text-slate-200">
+          {isSetupSection ? 'Még nincs létrafok a setup() szakaszban' : 'Még nincs létrafok a loop() szakaszban'}
+        </h4>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          {isSetupSection
+            ? 'A mikrokontroller bekapcsolásakor (setup()) egyszer lefutó létrákhoz kattints az "Új Létrafok Hozzáadása" gombra!'
+            : 'Kattints az "Új Létrafok Hozzáadása" gombra vagy húzz be elemeket a bal oldali palettáról!'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        height: `${rowVirtualizer.getTotalSize()}px`,
+        width: '100%',
+        position: 'relative',
+      }}
+    >
+      {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+        const rung = rungs[virtualItem.index];
+        if (!rung) return null;
+        return (
+          <div
+            key={rung.id}
+            ref={rowVirtualizer.measureElement}
+            data-index={virtualItem.index}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+            className="pb-6"
+          >
+            <RungRow
+              rung={rung}
+              rIndex={virtualItem.index}
+              isSelected={selectedRungIndex === virtualItem.index}
+              selectedElementIds={selectedElementIds}
+              searchQuery={searchQuery}
+              simulationState={simulationState}
+              isSetupSection={isSetupSection}
+              validationErrors={validationErrors}
+              onSelectRung={onSelectRung}
+              onSelectElement={onSelectElement}
+              onDeleteElement={onDeleteElement}
+              onMoveRung={onMoveRung}
+              onUpdateRungComment={onUpdateRungComment}
+              onAddParallelBranch={onAddParallelBranch}
+              onDeleteParallelBranch={onDeleteParallelBranch}
+              onDropElementOnBranch={onDropElementOnBranch}
+              onDropElementOnCoils={onDropElementOnCoils}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              dragOverTarget={dragOverTarget}
+              onDuplicateRung={onDuplicateRung}
+              onDeleteRung={onDeleteRung}
+              onTunePid={onTunePid}
+              onCrossReference={onCrossReference}
+              onForceInput={onForceInput}
+              totalRungsCount={rungs.length}
+              onContextMenuOpen={onContextMenuOpen}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const LadderCanvas: React.FC<LadderCanvasProps> = ({
   rungs,
   simulationState,
@@ -712,55 +900,35 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
             </div>
 
             {/* Rungs Container */}
-            <div className="relative border-l-4 border-r-4 border-l-rose-500 border-r-sky-500 bg-slate-900/40 rounded-lg p-4 space-y-6 shadow-2xl">
-              {rungs.length === 0 ? (
-                <div className="py-12 px-4 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-                    <Plus className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-200">
-                    {isSetupSection ? 'Még nincs létrafok a setup() szakaszban' : 'Még nincs létrafok a loop() szakaszban'}
-                  </h4>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    {isSetupSection
-                      ? 'A mikrokontroller bekapcsolásakor (setup()) egyszer lefutó létrákhoz kattints az "Új Létrafok Hozzáadása" gombra!'
-                      : 'Kattints az "Új Létrafok Hozzáadása" gombra vagy húzz be elemeket a bal oldali palettáról!'}
-                  </p>
-                </div>
-              ) : (
-                rungs.map((rung, rIndex) => (
-                  <RungRow
-                    key={rung.id}
-                    rung={rung}
-                    rIndex={rIndex}
-                    isSelected={selectedRungIndex === rIndex}
-                    selectedElementIds={selectedElementIds}
-                    searchQuery={searchQuery}
-                    simulationState={simulationState}
-                    isSetupSection={isSetupSection}
-                    validationErrors={validationErrors}
-                    onSelectRung={onSelectRung}
-                    onSelectElement={onSelectElement}
-                    onDeleteElement={onDeleteElement}
-                    onMoveRung={onMoveRung}
-                    onUpdateRungComment={onUpdateRungComment}
-                    onAddParallelBranch={onAddParallelBranch}
-                    onDeleteParallelBranch={onDeleteParallelBranch}
-                    onDropElementOnBranch={onDropElementOnBranch}
-                    onDropElementOnCoils={onDropElementOnCoils}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    dragOverTarget={dragOverTarget}
-                    onDuplicateRung={onDuplicateRung}
-                    onDeleteRung={onDeleteRung}
-                    onTunePid={onTunePid}
-                    onCrossReference={onCrossReference}
-                    onForceInput={onForceInput}
-                    totalRungsCount={rungs.length}
-                    onContextMenuOpen={handleContextMenuOpen}
-                  />
-                ))
-              )}
+            <div className="relative border-l-4 border-r-4 border-l-rose-500 border-r-sky-500 bg-slate-900/40 rounded-lg p-4 shadow-2xl">
+              <VirtualizedRungsList
+                rungs={rungs}
+                scrollContainerRef={scrollContainerRef}
+                selectedRungIndex={selectedRungIndex}
+                selectedElementIds={selectedElementIds}
+                searchQuery={searchQuery}
+                simulationState={simulationState}
+                isSetupSection={isSetupSection}
+                validationErrors={validationErrors}
+                onSelectRung={onSelectRung}
+                onSelectElement={onSelectElement}
+                onDeleteElement={onDeleteElement}
+                onMoveRung={onMoveRung}
+                onUpdateRungComment={onUpdateRungComment}
+                onAddParallelBranch={onAddParallelBranch}
+                onDeleteParallelBranch={onDeleteParallelBranch}
+                onDropElementOnBranch={onDropElementOnBranch}
+                onDropElementOnCoils={onDropElementOnCoils}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                dragOverTarget={dragOverTarget}
+                onDuplicateRung={onDuplicateRung}
+                onDeleteRung={onDeleteRung}
+                onTunePid={onTunePid}
+                onCrossReference={onCrossReference}
+                onForceInput={onForceInput}
+                onContextMenuOpen={handleContextMenuOpen}
+              />
             </div>
 
             {/* Add New Rung Button */}

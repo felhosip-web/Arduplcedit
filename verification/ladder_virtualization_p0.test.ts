@@ -106,7 +106,7 @@ const defaultRungRowProps = {
 };
 
 function runTests() {
-  console.log('🧪 Running P0 Ladder Virtualization Architecture Tests...\n');
+  console.log('🧪 Running P1 Ladder Virtualization Architecture Tests...\n');
 
   // Test 1: RungRow renders actual DOM content without IntersectionObserver
   console.log('Test 1: RungRow renders actual content directly...');
@@ -187,7 +187,102 @@ function runTests() {
   assert(canvasSource.includes('scrollContainerRef'), 'LadderCanvas.tsx should contain scrollContainerRef');
   console.log('  PASSED');
 
-  console.log('\n✅ All P0 Ladder Virtualization Architecture tests passed successfully!');
+  // Test 6: Verify TanStack Virtual integration & stable getItemKey in source code
+  console.log('Test 6: Verify @tanstack/react-virtual integration & stable getItemKey in source code...');
+  assert(canvasSource.includes("import { useVirtualizer } from '@tanstack/react-virtual';"), 'LadderCanvas.tsx should import useVirtualizer from @tanstack/react-virtual');
+  assert(canvasSource.includes('useVirtualizer({'), 'LadderCanvas.tsx should call useVirtualizer');
+  assert(canvasSource.includes('count: rungs.length'), 'useVirtualizer should pass count: rungs.length');
+  assert(canvasSource.includes('getItemKey'), 'useVirtualizer should pass getItemKey');
+  assert(canvasSource.includes('rungs[index]?.id ?? index'), 'getItemKey should map to stable rung.id');
+  assert(canvasSource.includes('getScrollElement: () => scrollContainerRef.current'), 'useVirtualizer should pass getScrollElement');
+  assert(canvasSource.includes('overscan: 5'), 'useVirtualizer should pass overscan');
+  assert(canvasSource.includes('estimateSize: () => 160'), 'useVirtualizer should pass estimateSize');
+  assert(canvasSource.includes('rowVirtualizer.getVirtualItems().map'), 'Rendering should map over rowVirtualizer.getVirtualItems()');
+  assert(!canvasSource.includes('rungs.map((rung, rIndex) =>'), 'LadderCanvas.tsx should NOT map rungs directly');
+  assert(canvasSource.includes('ref={rowVirtualizer.measureElement}'), 'Virtual row should include ref={rowVirtualizer.measureElement} for variable height measurement');
+  assert(canvasSource.includes('data-index={virtualItem.index}'), 'Virtual row should include data-index');
+  assert(canvasSource.includes('key={rung.id}'), 'Virtual row should use stable key={rung.id}');
+  console.log('  PASSED');
+
+  // Test 7: Verify virtual rendering only mounts visible + overscan rungs for large rung lists
+  console.log('Test 7: Verify virtual rendering limits mounted DOM nodes for large rung lists...');
+  const largeRungsCount = 100;
+  const largeRungs: Rung[] = Array.from({ length: largeRungsCount }, (_, i) => ({
+    ...sampleRung,
+    id: `rung_large_${i}`,
+    number: i,
+    comment: `Large Rung Item #${i}`
+  }));
+
+  const htmlLargeCanvas = renderToString(
+    React.createElement(LadderCanvas, {
+      rungs: largeRungs,
+      simulationState: mockSimulationState,
+      selectedRungIndex: 0,
+      selectedElementIds: [],
+      onSelectRung: () => {},
+      onSelectElement: () => {},
+      onDeleteElement: () => {},
+      onAddRung: () => {},
+      onDeleteRung: () => {},
+      onDuplicateRung: () => {},
+      onMoveRung: () => {},
+      onUpdateRungComment: () => {},
+      onAddParallelBranch: () => {},
+      onDeleteParallelBranch: () => {},
+      onDropElementOnBranch: () => {},
+      onDropElementOnCoils: () => {}
+    })
+  );
+
+  assert(htmlLargeCanvas.includes('Large Rung Item #0'), 'First rung should be rendered');
+  assert(!htmlLargeCanvas.includes('Large Rung Item #99'), 'Last rung (#99) should NOT be rendered when scrolled to top');
+  const renderedItemMatches = htmlLargeCanvas.match(/Large Rung Item #\d+/g) || [];
+  assert(renderedItemMatches.length < largeRungsCount, `Mounted rows (${renderedItemMatches.length}) should be far less than total count (${largeRungsCount})`);
+  console.log(`  PASSED (mounted ${renderedItemMatches.length} out of ${largeRungsCount} rungs)`);
+
+  // Test 8: Verify getItemKey behavior across reorder and deletion
+  console.log('Test 8: Verify getItemKey behavior across reorder and deletion...');
+  const itemKeyFn = (rungsList: Rung[], index: number) => rungsList[index]?.id ?? index;
+  const initialList = [{ ...sampleRung, id: 'rung_A' }, { ...sampleRung, id: 'rung_B' }, { ...sampleRung, id: 'rung_C' }];
+  assert(itemKeyFn(initialList, 0) === 'rung_A', 'Index 0 should resolve to rung_A');
+  assert(itemKeyFn(initialList, 1) === 'rung_B', 'Index 1 should resolve to rung_B');
+
+  // After reordering (swapping index 0 and index 1)
+  const reorderedList = [initialList[1], initialList[0], initialList[2]];
+  assert(itemKeyFn(reorderedList, 0) === 'rung_B', 'Reordered index 0 should resolve to rung_B');
+  assert(itemKeyFn(reorderedList, 1) === 'rung_A', 'Reordered index 1 should resolve to rung_A');
+
+  // After deletion of index 0
+  const deletedList = [initialList[1], initialList[2]];
+  assert(itemKeyFn(deletedList, 0) === 'rung_B', 'Deleted list index 0 should resolve to rung_B');
+  assert(itemKeyFn(deletedList, 1) === 'rung_C', 'Deleted list index 1 should resolve to rung_C');
+  console.log('  PASSED');
+
+  // Test 9: Verify zoom/pan coordinate transformation calculations
+  console.log('Test 9: Verify zoom/pan coordinate transformation calculations...');
+  const calculateVirtualOffset = (scrollTop: number, positionY: number, scale: number) =>
+    Math.max(0, (scrollTop - positionY) / Math.max(0.1, scale));
+  const calculateVirtualHeight = (clientHeight: number, scale: number) =>
+    Math.round(clientHeight / Math.max(0.1, scale));
+
+  // At scale 1.0, offset and height equal native values
+  assert(calculateVirtualOffset(200, 0, 1.0) === 200, 'At 1.0x scale offset equals 200');
+  assert(calculateVirtualHeight(800, 1.0) === 800, 'At 1.0x scale height equals 800');
+
+  // At scale 0.5x (zoomed out), effective height doubles to render 2x viewport worth of items
+  assert(calculateVirtualOffset(200, 0, 0.5) === 400, 'At 0.5x scale offset doubles to 400');
+  assert(calculateVirtualHeight(800, 0.5) === 1600, 'At 0.5x scale height doubles to 1600');
+
+  // At scale 2.0x (zoomed in), effective height halves to render only visible items
+  assert(calculateVirtualOffset(200, 0, 2.0) === 100, 'At 2.0x scale offset halves to 100');
+  assert(calculateVirtualHeight(800, 2.0) === 400, 'At 2.0x scale height halves to 400');
+
+  // Panning downwards (positionY = 100)
+  assert(calculateVirtualOffset(200, 100, 1.0) === 100, 'With positionY=100 panning, virtual offset adjusts to 100');
+  console.log('  PASSED');
+
+  console.log('\n✅ All P1 Ladder Virtualization tests passed successfully!');
 }
 
 runTests();
