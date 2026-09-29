@@ -45,6 +45,7 @@ import { ElementInspectorModal } from './components/ElementInspectorModal';
 import { CodeViewerModal } from './components/CodeViewerModal';
 import { ProjectSaveLoadModal } from './components/modals/ProjectSaveLoadModal';
 import { HardwareMapModal } from './components/modals/HardwareMapModal';
+import { HelpModal } from './components/help/HelpModal';
 import { MobileBlockScreen } from './components/MobileBlockScreen';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { extractPinUsages, analyzePinConflicts, ARDUINO_UNO_PINS } from './utils/hardwareMapUtils';
@@ -435,6 +436,31 @@ export default function App() {
 
   // Hardware Map Modal (Lábkiosztási Térkép)
   const [isHardwareMapOpen, setIsHardwareMapOpen] = useState(false);
+
+  // Help Modal (Súgó & Dokumentáció)
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // Global '?' shortcut key listener for Help modal
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        const target = e.target as HTMLElement | null;
+        if (
+          target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable)
+        ) {
+          return;
+        }
+        e.preventDefault();
+        setIsHelpOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // Inspector & Modals
   const [selectedRungIndex, setSelectedRungIndex] = useState<number>(0);
@@ -1349,6 +1375,7 @@ export default function App() {
         onRedo={redoLadder}
         canUndo={canUndoLadder}
         canRedo={canRedoLadder}
+        onOpenHelp={() => setIsHelpOpen(true)}
       />
 
       {/* 4 Main Pages */}
@@ -1535,6 +1562,12 @@ export default function App() {
         defaultBoard="uno"
         onUpdateElementPin={handleUpdateElementPin}
         onUpdateVariablePin={handleUpdateVariablePin}
+      />
+
+      {/* Súgó & Dokumentáció Modal */}
+      <HelpModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
       />
 
       {/* PWA Install Prompt Banner */}

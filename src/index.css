@@ -19,6 +19,14 @@
   background: rgba(100, 116, 139, 1);
 }
 
+/* Suppress all tooltips immediately when dragging elements */
+body.is-dragging [role="tooltip"],
+body.is-dragging .group:hover > div[role="tooltip"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Print and PDF Export Styles */
 @media print {
   /* Hide UI elements that are not part of the ladder diagram */

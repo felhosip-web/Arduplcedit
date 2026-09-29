@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Rung, LadderElement, SimulationState, CustomModuleTemplate, Subroutine, Program } from '../types';
 import { ToolPalette } from '../components/ToolPalette';
 import { LadderCanvas } from '../components/LadderCanvas';
-import { DndContext, DragEndEvent, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, defaultDropAnimationSideEffects, pointerWithin, closestCenter, CollisionDetection } from '@dnd-kit/core';
 import { CrossReferenceModal } from '../components/modals/CrossReferenceModal';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { ElementBlock } from '../components/ElementBlock';
@@ -14,6 +14,7 @@ import { FBDEditor } from '../components/fbd/FBDEditor';
 import { FBDDiagram, PLCVariable } from '../types';
 import { SaveMacroModal } from '../components/modals/SaveMacroModal';
 import { useStore } from '../store/useStore';
+import { setGlobalDragActive } from '../components/ui/Tooltip';
 import {
   Layers,
   Plus,
@@ -59,6 +60,14 @@ interface EditorViewProps {
   onUpdateActiveProgramFBD?: (fbd: FBDDiagram) => void;
   onForceInput?: (element: LadderElement, forceValue?: boolean) => void;
 }
+
+const customCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions;
+  }
+  return closestCenter(args);
+};
 
 export const EditorView: React.FC<EditorViewProps> = ({
   variables,
@@ -387,6 +396,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleDragStart = (e: any) => {
+    setGlobalDragActive(true);
     const { active } = e;
     if (active.data.current) {
       setActiveDragElement(active.data.current);
@@ -394,6 +404,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setGlobalDragActive(false);
     setActiveDragElement(null);
     const { active, over } = event;
     if (!over || !active.data.current) return;
@@ -425,6 +436,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
         handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
       }
     }
+  };
+
+  const handleDragCancel = () => {
+    setGlobalDragActive(false);
+    setActiveDragElement(null);
   };
 
   // Quick insert current subroutine into main ladder
@@ -712,7 +728,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
           />
         </div>
       ) : (
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[snapCenterToCursor]}>
+        <DndContext
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+          collisionDetection={customCollisionDetection}
+          modifiers={[snapCenterToCursor]}
+        >
           <div className="flex-1 flex overflow-hidden">
             <ToolPalette
               onAddElement={handleAddElement}
