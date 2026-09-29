@@ -614,14 +614,18 @@ const VirtualizedRungsList: React.FC<VirtualizedRungsListProps> = ({
   onForceInput,
   onContextMenuOpen
 }) => {
-  const transformState = useTransformComponent(({ state }) => state);
-  const scale = transformState?.scale ?? 1;
-  const positionY = transformState?.positionY ?? 0;
+  const { instance: transform } = useControls();
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const scaleRef = useRef(scale);
-  const posYRef = useRef(positionY);
-  scaleRef.current = scale;
-  posYRef.current = positionY;
+  // DOM bounds include native scrolling, pan, and the header/padding above the list.
+  // Convert their viewport-space difference back to unscaled row coordinates.
+  const getVirtualOffset = (el: HTMLDivElement) => {
+    const list = listRef.current;
+    if (!list) return 0;
+    return Math.max(0, (
+      el.getBoundingClientRect().top + el.clientTop - list.getBoundingClientRect().top
+    ) / transform.state.scale);
+  };
 
   const getItemKey = useCallback((index: number) => rungs[index]?.id ?? index, [rungs]);
 
@@ -631,39 +635,49 @@ const VirtualizedRungsList: React.FC<VirtualizedRungsListProps> = ({
     estimateSize: () => 160,
     overscan: 5,
     getItemKey,
-    initialRect: { width: 1000, height: Math.round(800 / Math.max(0.1, scale)) },
+    initialRect: { width: 1000, height: 800 / transform.state.scale },
     observeElementOffset: (instance, cb) => {
       const el = instance.scrollElement;
       if (!el) return;
-      const calculate = () => {
-        const s = scaleRef.current || 1;
-        const py = posYRef.current || 0;
-        const offset = Math.max(0, (el.scrollTop - py) / s);
-        cb(offset, false);
-      };
+      const calculate = () => cb(getVirtualOffset(el), false);
       calculate();
       el.addEventListener('scroll', calculate, { passive: true });
-      return () => el.removeEventListener('scroll', calculate);
+      const unsubscribe = transform.onChange(calculate);
+      const ro = new ResizeObserver(calculate);
+      ro.observe(el);
+      if (listRef.current) ro.observe(listRef.current);
+      return () => {
+        el.removeEventListener('scroll', calculate);
+        unsubscribe();
+        ro.disconnect();
+      };
     },
     observeElementRect: (instance, cb) => {
       const el = instance.scrollElement;
       if (!el) return;
-      const calculate = () => {
-        const s = scaleRef.current || 1;
-        const width = el.clientWidth || 1000;
-        const height = (el.clientHeight || 800) / s;
-        cb({ width: Math.round(width), height: Math.round(height) });
-      };
+      const calculate = () => cb({
+        width: el.clientWidth / transform.state.scale,
+        height: el.clientHeight / transform.state.scale,
+      });
       calculate();
+      const unsubscribe = transform.onChange(calculate);
       const ro = new ResizeObserver(calculate);
       ro.observe(el);
-      return () => ro.disconnect();
+      return () => {
+        unsubscribe();
+        ro.disconnect();
+      };
+    },
+    // Measurement corrections are in row coordinates; native scroll uses pixels.
+    scrollToFn: (offset, { adjustments = 0, behavior }, instance) => {
+      const el = instance.scrollElement;
+      if (!el) return;
+      el.scrollTo({
+        top: el.scrollTop + (offset + adjustments - getVirtualOffset(el)) * transform.state.scale,
+        behavior,
+      });
     },
   });
-
-  useEffect(() => {
-    rowVirtualizer.measure();
-  }, [scale, positionY, rowVirtualizer]);
 
   if (rungs.length === 0) {
     return (
@@ -685,6 +699,7 @@ const VirtualizedRungsList: React.FC<VirtualizedRungsListProps> = ({
 
   return (
     <div
+      ref={listRef}
       style={{
         height: `${rowVirtualizer.getTotalSize()}px`,
         width: '100%',
