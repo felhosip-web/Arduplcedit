@@ -707,13 +707,29 @@ export default function App() {
 
   // Macro Insertion handler
   const handleInsertMacroToLadder = (newRungs: Rung[], macroName: string) => {
-    // Append generated rungs to main loop rungs, renumbering appropriately
-    const startNum = rungs.length;
-    const renumbered = newRungs.map((r, i) => ({
-      ...r,
-      number: startNum + i
-    }));
-    setRungs((prev) => [...prev, ...renumbered]);
+    if (activeSubroutineId) {
+      const currentSubRungs = subroutines.find((s) => s.id === activeSubroutineId)?.rungs || [];
+      const startNum = currentSubRungs.length;
+      const renumbered = newRungs.map((r, i) => ({
+        ...r,
+        number: startNum + i
+      }));
+      setSubroutines(
+        subroutines.map((sub) =>
+          sub.id === activeSubroutineId
+            ? { ...sub, rungs: [...sub.rungs, ...renumbered] }
+            : sub
+        )
+      );
+    } else {
+      const currentTargetRungs = effectiveMainRungs;
+      const startNum = currentTargetRungs.length;
+      const renumbered = newRungs.map((r, i) => ({
+        ...r,
+        number: startNum + i
+      }));
+      handleUpdateEffectiveMainRungs([...currentTargetRungs, ...renumbered]);
+    }
   };
 
   // Custom Modules CRUD
