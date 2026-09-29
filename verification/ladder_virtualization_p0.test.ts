@@ -106,7 +106,7 @@ const defaultRungRowProps = {
 };
 
 function runTests() {
-  console.log('🧪 Running P0 Ladder Virtualization Architecture Tests...\n');
+  console.log('🧪 Running P1 Ladder Virtualization Architecture Tests...\n');
 
   // Test 1: RungRow renders actual DOM content without IntersectionObserver
   console.log('Test 1: RungRow renders actual content directly...');
@@ -187,7 +187,61 @@ function runTests() {
   assert(canvasSource.includes('scrollContainerRef'), 'LadderCanvas.tsx should contain scrollContainerRef');
   console.log('  PASSED');
 
-  console.log('\n✅ All P0 Ladder Virtualization Architecture tests passed successfully!');
+  // Test 6: Verify TanStack Virtual integration in source code
+  console.log('Test 6: Verify @tanstack/react-virtual integration in source code...');
+  assert(canvasSource.includes("import { useVirtualizer } from '@tanstack/react-virtual';"), 'LadderCanvas.tsx should import useVirtualizer from @tanstack/react-virtual');
+  assert(canvasSource.includes('useVirtualizer({'), 'LadderCanvas.tsx should call useVirtualizer');
+  assert(canvasSource.includes('count: rungs.length'), 'useVirtualizer should pass count: rungs.length');
+  assert(canvasSource.includes('getScrollElement: () => scrollContainerRef.current'), 'useVirtualizer should pass getScrollElement');
+  assert(canvasSource.includes('overscan: 5'), 'useVirtualizer should pass overscan');
+  assert(canvasSource.includes('estimateSize: () => 160'), 'useVirtualizer should pass estimateSize');
+  assert(canvasSource.includes('rowVirtualizer.getVirtualItems().map'), 'Rendering should map over rowVirtualizer.getVirtualItems()');
+  assert(!canvasSource.includes('rungs.map((rung, rIndex) =>'), 'LadderCanvas.tsx should NOT map rungs directly');
+  assert(canvasSource.includes('ref={rowVirtualizer.measureElement}'), 'Virtual row should include ref={rowVirtualizer.measureElement} for variable height measurement');
+  assert(canvasSource.includes('data-index={virtualItem.index}'), 'Virtual row should include data-index');
+  assert(canvasSource.includes('key={rung.id}'), 'Virtual row should use stable key={rung.id}');
+  console.log('  PASSED');
+
+  // Test 7: Verify virtual rendering only mounts visible + overscan rungs for large rung lists
+  console.log('Test 7: Verify virtual rendering limits mounted DOM nodes for large rung lists...');
+  const largeRungsCount = 100;
+  const largeRungs: Rung[] = Array.from({ length: largeRungsCount }, (_, i) => ({
+    ...sampleRung,
+    id: `rung_large_${i}`,
+    number: i,
+    comment: `Large Rung Item #${i}`
+  }));
+
+  const htmlLargeCanvas = renderToString(
+    React.createElement(LadderCanvas, {
+      rungs: largeRungs,
+      simulationState: mockSimulationState,
+      selectedRungIndex: 0,
+      selectedElementIds: [],
+      onSelectRung: () => {},
+      onSelectElement: () => {},
+      onDeleteElement: () => {},
+      onAddRung: () => {},
+      onDeleteRung: () => {},
+      onDuplicateRung: () => {},
+      onMoveRung: () => {},
+      onUpdateRungComment: () => {},
+      onAddParallelBranch: () => {},
+      onDeleteParallelBranch: () => {},
+      onDropElementOnBranch: () => {},
+      onDropElementOnCoils: () => {}
+    })
+  );
+
+  assert(htmlLargeCanvas.includes('Large Rung Item #0'), 'First rung should be rendered');
+  // Since default scroll position is 0 and estimateSize is 160 with overscan 5 in JS-DOM/SSR environment,
+  // virtualizer renders initial viewport items + overscan (typically ~5 to 10 items), NOT all 100 rungs.
+  assert(!htmlLargeCanvas.includes('Large Rung Item #99'), 'Last rung (#99) should NOT be rendered when scrolled to top');
+  const renderedItemMatches = htmlLargeCanvas.match(/Large Rung Item #\d+/g) || [];
+  assert(renderedItemMatches.length < largeRungsCount, `Mounted rows (${renderedItemMatches.length}) should be far less than total count (${largeRungsCount})`);
+  console.log(`  PASSED (mounted ${renderedItemMatches.length} out of ${largeRungsCount} rungs)`);
+
+  console.log('\n✅ All P1 Ladder Virtualization tests passed successfully!');
 }
 
 runTests();

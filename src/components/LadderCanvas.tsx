@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Rung, LadderElement, SimulationState } from '../types';
 import { ElementBlock } from './ElementBlock';
 import { Plus, ArrowUp, ArrowDown, Copy, Trash2, Split, MessageSquare, AlertTriangle, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
@@ -590,6 +591,14 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
    */
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const rowVirtualizer = useVirtualizer({
+    count: rungs.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 160,
+    overscan: 5,
+    initialRect: { width: 1000, height: 800 },
+  });
+
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const dragTargetRef = useRef<string | null>(null);
   const rafId = useRef<number | null>(null);
@@ -712,7 +721,7 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
             </div>
 
             {/* Rungs Container */}
-            <div className="relative border-l-4 border-r-4 border-l-rose-500 border-r-sky-500 bg-slate-900/40 rounded-lg p-4 space-y-6 shadow-2xl">
+            <div className="relative border-l-4 border-r-4 border-l-rose-500 border-r-sky-500 bg-slate-900/40 rounded-lg p-4 shadow-2xl">
               {rungs.length === 0 ? (
                 <div className="py-12 px-4 text-center space-y-3">
                   <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
@@ -728,38 +737,63 @@ export const LadderCanvas: React.FC<LadderCanvasProps> = ({
                   </p>
                 </div>
               ) : (
-                rungs.map((rung, rIndex) => (
-                  <RungRow
-                    key={rung.id}
-                    rung={rung}
-                    rIndex={rIndex}
-                    isSelected={selectedRungIndex === rIndex}
-                    selectedElementIds={selectedElementIds}
-                    searchQuery={searchQuery}
-                    simulationState={simulationState}
-                    isSetupSection={isSetupSection}
-                    validationErrors={validationErrors}
-                    onSelectRung={onSelectRung}
-                    onSelectElement={onSelectElement}
-                    onDeleteElement={onDeleteElement}
-                    onMoveRung={onMoveRung}
-                    onUpdateRungComment={onUpdateRungComment}
-                    onAddParallelBranch={onAddParallelBranch}
-                    onDeleteParallelBranch={onDeleteParallelBranch}
-                    onDropElementOnBranch={onDropElementOnBranch}
-                    onDropElementOnCoils={onDropElementOnCoils}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    dragOverTarget={dragOverTarget}
-                    onDuplicateRung={onDuplicateRung}
-                    onDeleteRung={onDeleteRung}
-                    onTunePid={onTunePid}
-                    onCrossReference={onCrossReference}
-                    onForceInput={onForceInput}
-                    totalRungsCount={rungs.length}
-                    onContextMenuOpen={handleContextMenuOpen}
-                  />
-                ))
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                    const rung = rungs[virtualItem.index];
+                    if (!rung) return null;
+                    return (
+                      <div
+                        key={rung.id}
+                        ref={rowVirtualizer.measureElement}
+                        data-index={virtualItem.index}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualItem.start}px)`,
+                        }}
+                        className="pb-6"
+                      >
+                        <RungRow
+                          rung={rung}
+                          rIndex={virtualItem.index}
+                          isSelected={selectedRungIndex === virtualItem.index}
+                          selectedElementIds={selectedElementIds}
+                          searchQuery={searchQuery}
+                          simulationState={simulationState}
+                          isSetupSection={isSetupSection}
+                          validationErrors={validationErrors}
+                          onSelectRung={onSelectRung}
+                          onSelectElement={onSelectElement}
+                          onDeleteElement={onDeleteElement}
+                          onMoveRung={onMoveRung}
+                          onUpdateRungComment={onUpdateRungComment}
+                          onAddParallelBranch={onAddParallelBranch}
+                          onDeleteParallelBranch={onDeleteParallelBranch}
+                          onDropElementOnBranch={onDropElementOnBranch}
+                          onDropElementOnCoils={onDropElementOnCoils}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          dragOverTarget={dragOverTarget}
+                          onDuplicateRung={onDuplicateRung}
+                          onDeleteRung={onDeleteRung}
+                          onTunePid={onTunePid}
+                          onCrossReference={onCrossReference}
+                          onForceInput={onForceInput}
+                          totalRungsCount={rungs.length}
+                          onContextMenuOpen={handleContextMenuOpen}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
