@@ -84,6 +84,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<LadderElement | null>(null);
   const [pinTab, setPinTab] = useState<'arduino' | 'mcp_a' | 'mcp_b' | 'pcf'>('arduino');
+  const [coilBindingMode, setCoilBindingMode] = useState<'pin' | 'flag'>('pin');
 
   useEffect(() => {
     if (element) {
@@ -96,6 +97,12 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
         setPinTab('pcf');
       } else {
         setPinTab('arduino');
+      }
+
+      if (element.type === 'INTERNAL_FLAG_COIL' || (element.category === 'coil' && element.variable && !element.pin)) {
+        setCoilBindingMode('flag');
+      } else {
+        setCoilBindingMode('pin');
       }
     }
   }, [element]);
@@ -177,8 +184,51 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
             />
           </div>
 
+          {/* Coil Binding Mode Selector (Physical Pin vs Internal M Bit) for Coil Elements */}
+          {formData.category === 'coil' && (
+            <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800 text-xs">
+              <span className="text-slate-400 font-medium px-2">Címzés Típusa:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoilBindingMode('pin');
+                  if (!formData.pin) {
+                    setFormData({ ...formData, pin: 'D8', variable: undefined });
+                  }
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-md font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  coilBindingMode === 'pin'
+                    ? 'bg-sky-600 text-white font-bold shadow'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5" />
+                <span>Fizikai Láb (D2-D13)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoilBindingMode('flag');
+                  if (!formData.variable) {
+                    setFormData({ ...formData, variable: 'M0', pin: undefined });
+                  }
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-md font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  coilBindingMode === 'flag'
+                    ? 'bg-amber-600 text-white font-bold shadow'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                }`}
+              >
+                <HardDrive className="w-3.5 h-3.5" />
+                <span>Belső Marker / Változó (M0..M15)</span>
+              </button>
+            </div>
+          )}
+
           {/* Internal Flag selection (M bits & SM special bits) */}
-          {(formData.type === 'INTERNAL_FLAG_CONTACT' || formData.type === 'INTERNAL_FLAG_COIL') && (
+          {(formData.type === 'INTERNAL_FLAG_CONTACT' ||
+            formData.type === 'INTERNAL_FLAG_COIL' ||
+            (formData.category === 'coil' && coilBindingMode === 'flag')) && (
             <div className="p-3.5 bg-amber-950/30 border border-amber-800/80 rounded-lg space-y-3.5">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
@@ -263,7 +313,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
 
           {/* Pin selection (Arduino & I/O Expanders MCP23xxx / PCF8574) */}
           {((formData.category === 'contact' && formData.type !== 'INTERNAL_FLAG_CONTACT') ||
-            (formData.category === 'coil' && formData.type !== 'INTERNAL_FLAG_COIL') ||
+            (formData.category === 'coil' && coilBindingMode === 'pin') ||
             formData.type === 'SERVO_WRITE' ||
             formData.type === 'DHT_READ' ||
             formData.type === 'PWM_OUT') && (
@@ -334,7 +384,7 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     <button
                       key={pin}
                       type="button"
-                      onClick={() => setFormData({ ...formData, pin })}
+                      onClick={() => setFormData({ ...formData, pin, variable: undefined })}
                       className={`px-2 py-1.5 rounded text-xs font-mono font-medium border transition-colors ${
                         formData.pin === pin
                           ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold shadow-[0_0_10px_rgba(56,189,248,0.4)]'
