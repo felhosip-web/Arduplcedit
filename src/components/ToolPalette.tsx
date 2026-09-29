@@ -3,6 +3,7 @@ import { ElementType, ElementCategory, LadderElement, CustomModuleTemplate, Subr
 import { Radio, Zap, Clock, Cpu, Plus, HelpCircle, Layers, Sliders, Box, Network, Variable, Calendar } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { isModuleAllowedInSection } from '../utils/moduleSectionFilter';
+import { Tooltip } from './ui/Tooltip';
 
 // Helper component for draggables
 const DraggableItem = ({ id, data, children, className, onClick }: any) => {
@@ -385,59 +386,78 @@ export const ToolPalette: React.FC<ToolPaletteProps> = ({
 
         {/* Regular Modules Section */}
         {filteredModules.map((item) => (
-          <DraggableItem
+          <Tooltip
             key={item.id}
-            id={`module_${item.id}`}
-            data={buildElementData(item)}
-            onClick={() => onAddElement(buildElementData(item))}
-            className={`group p-2.5 rounded-xl transition-all cursor-grab active:cursor-grabbing relative border ${
-              item.category === 'protocol'
-                ? 'bg-emerald-950/20 hover:bg-emerald-950/40 border-emerald-800/60 hover:border-emerald-400'
-                : item.category === 'variable_op'
-                ? 'bg-amber-950/20 hover:bg-amber-950/40 border-amber-800/60 hover:border-amber-400'
-                : !item.isBuiltIn
-                ? 'bg-sky-950/30 hover:bg-sky-950/50 border-sky-800/80 hover:border-sky-400'
-                : 'bg-slate-950/70 hover:bg-slate-800 border-slate-800/90 hover:border-sky-500/60'
-            }`}
+            side="right"
+            delayMs={350}
+            content={
+              <div className="space-y-1">
+                <div className="font-bold text-sky-300 flex items-center gap-1">
+                  <span>{item.name}</span>
+                  <span className="font-mono text-[10px] text-slate-400">({item.symbol})</span>
+                </div>
+                <div className="text-[11px] text-slate-300 leading-normal">{item.description}</div>
+                {item.libraryName && (
+                  <div className="text-[10px] font-mono text-cyan-400 pt-1 border-t border-slate-700/60">
+                    Könyvtár: {item.libraryName}
+                  </div>
+                )}
+              </div>
+            }
           >
-            <div className="flex items-center justify-between pointer-events-none">
-              <div className="flex items-center gap-2">
-                <span className={`font-mono font-bold text-xs px-2 py-0.5 rounded border shrink-0 ${
-                  item.category === 'protocol'
-                    ? 'text-emerald-400 bg-emerald-950 border-emerald-800'
-                    : item.category === 'variable_op'
-                    ? 'text-amber-400 bg-amber-950 border-amber-800'
-                    : 'text-sky-400 bg-slate-900 border-slate-800'
-                }`}>
-                  {item.symbol}
-                </span>
-                <span className="text-xs font-semibold text-slate-200 group-hover:text-sky-300 transition-colors">
-                  {item.name}
-                </span>
+            <DraggableItem
+              id={`module_${item.id}`}
+              data={buildElementData(item)}
+              onClick={() => onAddElement(buildElementData(item))}
+              className={`group p-2.5 rounded-xl transition-all cursor-grab active:cursor-grabbing relative border w-full ${
+                item.category === 'protocol'
+                  ? 'bg-emerald-950/20 hover:bg-emerald-950/40 border-emerald-800/60 hover:border-emerald-400'
+                  : item.category === 'variable_op'
+                  ? 'bg-amber-950/20 hover:bg-amber-950/40 border-amber-800/60 hover:border-amber-400'
+                  : !item.isBuiltIn
+                  ? 'bg-sky-950/30 hover:bg-sky-950/50 border-sky-800/80 hover:border-sky-400'
+                  : 'bg-slate-950/70 hover:bg-slate-800 border-slate-800/90 hover:border-sky-500/60'
+              }`}
+            >
+              <div className="flex items-center justify-between pointer-events-none">
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono font-bold text-xs px-2 py-0.5 rounded border shrink-0 ${
+                    item.category === 'protocol'
+                      ? 'text-emerald-400 bg-emerald-950 border-emerald-800'
+                      : item.category === 'variable_op'
+                      ? 'text-amber-400 bg-amber-950 border-amber-800'
+                      : 'text-sky-400 bg-slate-900 border-slate-800'
+                  }`}>
+                    {item.symbol}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-200 group-hover:text-sky-300 transition-colors">
+                    {item.name}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="opacity-0 group-hover:opacity-100 p-1 bg-sky-500/20 text-sky-300 rounded hover:bg-sky-500 hover:text-slate-950 transition-all text-[11px]"
+                  title="Hozzáadás az aktív fokhoz"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
               </div>
 
-              <button
-                type="button"
-                className="opacity-0 group-hover:opacity-100 p-1 bg-sky-500/20 text-sky-300 rounded hover:bg-sky-500 hover:text-slate-950 transition-all text-[11px]"
-                title="Hozzáadás az aktív fokhoz"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
+              <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                {item.description}
+              </p>
 
-            <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
-              {item.description}
-            </p>
-
-            {item.libraryName && (
-              <div className="mt-2 flex items-center gap-1 text-[10px] font-mono text-cyan-400 pointer-events-none">
-                <Cpu className="w-3 h-3" />
-                <span className="bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/60">
-                  Lib: {item.libraryName}
-                </span>
-              </div>
-            )}
-          </DraggableItem>
+              {item.libraryName && (
+                <div className="mt-2 flex items-center gap-1 text-[10px] font-mono text-cyan-400 pointer-events-none">
+                  <Cpu className="w-3 h-3" />
+                  <span className="bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-800/60">
+                    Lib: {item.libraryName}
+                  </span>
+                </div>
+              )}
+            </DraggableItem>
+          </Tooltip>
         ))}
 
         {filteredModules.length === 0 && filteredSubroutines.length === 0 && (

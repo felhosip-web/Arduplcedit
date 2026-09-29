@@ -1160,22 +1160,22 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
       )}
 
       {/* Detailed Tooltip on Hover */}
-      <div className="hidden group-hover:block absolute top-full mt-2 left-1/2 -translate-x-1/2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 p-3 text-left pointer-events-none">
-        <div className="text-xs font-bold text-sky-400 border-b border-slate-700 pb-1 mb-1 truncate flex justify-between items-center">
+      <div className="hidden group-hover:block absolute top-full mt-2 left-1/2 -translate-x-1/2 w-52 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 p-3 text-left pointer-events-none animate-in fade-in duration-150">
+        <div className="text-xs font-bold text-sky-400 border-b border-slate-800 pb-1 mb-1.5 truncate flex justify-between items-center">
           <span>{element.name}</span>
           {isSimulating && isForceableContact && (
-            <span className="text-[9px] text-sky-300 font-mono font-normal">Kattints: Toggle</span>
+            <span className="text-[9px] text-sky-300 font-mono font-normal">Forcing</span>
           )}
         </div>
         <div className="space-y-1 text-[10px] font-mono text-slate-300">
           <div className="flex justify-between">
             <span className="text-slate-500">Típus:</span>
-            <span>{element.type}</span>
+            <span className="text-slate-200">{element.type}</span>
           </div>
           {resolvedVariable && (
             <div className="flex justify-between">
               <span className="text-slate-500">Változó/Ref:</span>
-              <span className="text-amber-300 font-bold truncate max-w-[80px]">{resolvedVariable}</span>
+              <span className="text-amber-300 font-bold truncate max-w-[90px]">{resolvedVariable}</span>
             </div>
           )}
           {element.pin && (
@@ -1185,12 +1185,12 @@ export const ElementBlock: React.FC<ElementBlockProps> = React.memo(({
             </div>
           )}
           {element.comment && (
-            <div className="mt-1 pt-1 border-t border-slate-700/50 text-slate-400 italic font-sans whitespace-pre-wrap">
+            <div className="mt-1 pt-1 border-t border-slate-800 text-slate-400 italic font-sans whitespace-pre-wrap">
               {element.comment}
             </div>
           )}
           {isSimulating && isForceableContact && (
-            <div className="mt-1 pt-1 border-t border-slate-700/50 text-sky-400 font-semibold text-[9px]">
+            <div className="mt-1 pt-1 border-t border-slate-800 text-sky-400 font-semibold text-[9px]">
               ⚡ Kattints vagy használd a Be/Ki gombot a jel kényszerítéséhez!
             </div>
           )}

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { EXAMPLE_PROJECTS, ExampleProject } from '../data/exampleProjects';
 import { ActivePage } from '../types';
+import { Tooltip } from './ui/Tooltip';
 
 interface NavbarProps {
   activePage: ActivePage;
@@ -202,24 +203,27 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Settings Menu */}
           <div className="relative">
-             <button
-                onClick={() => onChangePage('management')}
-                className="px-3 py-1.5 rounded-lg transition-colors hover:text-white hover:bg-slate-800/50 flex items-center gap-1.5"
-             >
-                <Settings className="w-4 h-4" /> Beállítások
-             </button>
+            <Tooltip content="Projekt beállítások, változókezelő, könyvtárak és ipari protokollok" side="bottom">
+              <button
+                 onClick={() => onChangePage('management')}
+                 className="px-3 py-1.5 rounded-lg transition-colors hover:text-white hover:bg-slate-800/50 flex items-center gap-1.5"
+              >
+                 <Settings className="w-4 h-4" /> Beállítások
+              </button>
+            </Tooltip>
           </div>
 
           {/* Help Button */}
           {onOpenHelp && (
             <div className="relative">
-              <button
-                onClick={onOpenHelp}
-                className="px-3 py-1.5 rounded-lg transition-colors text-sky-400 hover:text-sky-300 hover:bg-slate-800/50 flex items-center gap-1.5 font-semibold"
-                title="Súgó & Dokumentáció (?)"
-              >
-                <HelpCircle className="w-4 h-4 text-sky-400" /> Súgó
-              </button>
+              <Tooltip content="Súgó ablak megnyitása (?) - Részletes útmutató és leírások" side="bottom">
+                <button
+                  onClick={onOpenHelp}
+                  className="px-3 py-1.5 rounded-lg transition-colors text-sky-400 hover:text-sky-300 hover:bg-slate-800/50 flex items-center gap-1.5 font-semibold"
+                >
+                  <HelpCircle className="w-4 h-4 text-sky-400" /> Súgó
+                </button>
+              </Tooltip>
             </div>
           )}
         </div>
@@ -321,24 +325,26 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="flex items-center gap-2 shrink-0">
         {/* Undo/Redo quick buttons */}
         <div className="flex items-center gap-1 mr-2 border-r border-slate-700 pr-3">
-          <button
-            type="button"
-            onClick={() => { if(canUndo && onUndo) onUndo(); }}
-            disabled={!canUndo}
-            className={`p-1.5 rounded-md transition-colors ${canUndo ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
-            title="Visszavonás (Ctrl+Z)"
-          >
-            <Undo2 className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => { if(canRedo && onRedo) onRedo(); }}
-            disabled={!canRedo}
-            className={`p-1.5 rounded-md transition-colors ${canRedo ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
-            title="Újra (Ctrl+Y)"
-          >
-            <Redo2 className="w-4 h-4" />
-          </button>
+          <Tooltip content={canUndo ? "Utolsó módosítás visszavonása (Ctrl+Z)" : "Nincs visszavonható művelet"} side="bottom">
+            <button
+              type="button"
+              onClick={() => { if(canUndo && onUndo) onUndo(); }}
+              disabled={!canUndo}
+              className={`p-1.5 rounded-md transition-colors ${canUndo ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content={canRedo ? "Visszavont művelet újbóli végrehajtása (Ctrl+Y)" : "Nincs ismételhető művelet"} side="bottom">
+            <button
+              type="button"
+              onClick={() => { if(canRedo && onRedo) onRedo(); }}
+              disabled={!canRedo}
+              className={`p-1.5 rounded-md transition-colors ${canRedo ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 cursor-not-allowed'}`}
+            >
+              <Redo2 className="w-4 h-4" />
+            </button>
+          </Tooltip>
         </div>
 
         {/* Examples Dropdown */}
@@ -383,35 +389,38 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Hardware Map Modal Trigger */}
         {onOpenHardwareMap && (
-          <button
-            type="button"
-            onClick={onOpenHardwareMap}
-            className={`px-3 py-1.5 rounded-lg border font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm ${
-              pinConflictCount > 0
-                ? 'bg-rose-950/80 border-rose-600 text-rose-300 hover:bg-rose-900/90 animate-pulse'
-                : 'bg-sky-950/60 border-sky-600/70 text-sky-300 hover:bg-sky-900/60 hover:text-white'
-            }`}
-            title="Hardver Lábkiosztási Térkép & Ütközésvizsgálat (Arduino Uno & Mega)"
-          >
-            <Cpu className="w-3.5 h-3.5" />
-            <span>Hardver Térkép</span>
-            {pinConflictCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">
-                {pinConflictCount}
-              </span>
-            )}
-          </button>
+          <Tooltip content={pinConflictCount > 0 ? `${pinConflictCount} lábkonfliktus észlelve! Kattints az ellenőrzéshez.` : "Arduino I/O lábkiosztási térkép és ütközésvizsgáló"} side="bottom">
+            <button
+              type="button"
+              onClick={onOpenHardwareMap}
+              className={`px-3 py-1.5 rounded-lg border font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm ${
+                pinConflictCount > 0
+                  ? 'bg-rose-950/80 border-rose-600 text-rose-300 hover:bg-rose-900/90 animate-pulse'
+                  : 'bg-sky-950/60 border-sky-600/70 text-sky-300 hover:bg-sky-900/60 hover:text-white'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>Hardver Térkép</span>
+              {pinConflictCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-bold">
+                  {pinConflictCount}
+                </span>
+              )}
+            </button>
+          </Tooltip>
         )}
 
         {/* Arduino Code Generator Modal Trigger */}
-        <button
-          type="button"
-          onClick={onOpenCodeViewer}
-          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all"
-        >
-          <Terminal className="w-4 h-4" />
-          <span>Arduino Kód (.ino)</span>
-        </button>
+        <Tooltip content="Automatikusan generált Arduino C++ (.ino) forráskód megtekintése" side="bottom">
+          <button
+            type="button"
+            onClick={onOpenCodeViewer}
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all"
+          >
+            <Terminal className="w-4 h-4" />
+            <span>Arduino Kód (.ino)</span>
+          </button>
+        </Tooltip>
       </div>
     </header>
   );
