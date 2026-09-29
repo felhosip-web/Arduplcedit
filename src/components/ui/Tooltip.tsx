@@ -9,6 +9,31 @@ export interface TooltipProps {
   disabled?: boolean;
 }
 
+// Global flag and cooldown timer for dnd-kit drag operations
+let isGlobalDragActive = false;
+let globalDragCooldownTimer: NodeJS.Timeout | null = null;
+
+export const setGlobalDragActive = (active: boolean) => {
+  if (active) {
+    if (globalDragCooldownTimer) {
+      clearTimeout(globalDragCooldownTimer);
+      globalDragCooldownTimer = null;
+    }
+    isGlobalDragActive = true;
+    document.documentElement.dataset.dragging = '1';
+    window.dispatchEvent(new CustomEvent('arduplc:drag-start'));
+  } else {
+    isGlobalDragActive = true; // keep suppressed during cooldown
+    document.documentElement.dataset.dragging = '1';
+    if (globalDragCooldownTimer) clearTimeout(globalDragCooldownTimer);
+    globalDragCooldownTimer = setTimeout(() => {
+      isGlobalDragActive = false;
+      delete document.documentElement.dataset.dragging;
+      window.dispatchEvent(new CustomEvent('arduplc:drag-end'));
+    }, 250);
+  }
+};
+
 export const Tooltip: React.FC<TooltipProps> = ({
   content,
   children,
@@ -20,14 +45,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleMouseEnter = () => {
-    if (disabled || !content) return;
-    timerRef.current = setTimeout(() => {
-      setIsVisible(true);
-    }, delayMs);
-  };
-
-  const handleMouseLeave = () => {
+  const hideTooltip = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -35,11 +53,45 @@ export const Tooltip: React.FC<TooltipProps> = ({
     setIsVisible(false);
   };
 
+  const handleMouseEnter = () => {
+    if (disabled || !content || isGlobalDragActive) return;
+    if (document.documentElement.dataset.dragging === '1') return;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (!isGlobalDragActive && document.documentElement.dataset.dragging !== '1') {
+        setIsVisible(true);
+      }
+    }, delayMs);
+  };
+
+  const handleMouseLeave = () => {
+    hideTooltip();
+  };
+
   useEffect(() => {
+    const handleDragStart = () => hideTooltip();
+    const handleDragEnd = () => hideTooltip();
+    const handleScroll = () => hideTooltip();
+    const handlePointerDown = () => {
+      if (isGlobalDragActive || document.documentElement.dataset.dragging === '1') {
+        hideTooltip();
+      }
+    };
+
+    window.addEventListener('arduplc:drag-start', handleDragStart);
+    window.addEventListener('arduplc:drag-end', handleDragEnd);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('pointerdown', handlePointerDown, true);
+
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
+      window.removeEventListener('arduplc:drag-start', handleDragStart);
+      window.removeEventListener('arduplc:drag-end', handleDragEnd);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('pointerdown', handlePointerDown, true);
     };
   }, []);
 
@@ -80,16 +132,16 @@ export const Tooltip: React.FC<TooltipProps> = ({
       className="relative inline-flex"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onMouseDown={handleMouseLeave}
+      onMouseDown={hideTooltip}
     >
       {children}
-      {isVisible && (
+      {isVisible && !isGlobalDragActive && (
         <div
           className={`absolute z-[110] pointer-events-none ${getPositionClasses()} ${className}`}
         >
-          <div className="bg-slate-900 border border-slate-700/90 text-slate-200 text-xs px-2.5 py-1.5 rounded-lg shadow-xl max-w-xs whitespace-normal leading-relaxed select-none animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700/90 text-slate-200 text-xs px-2.5 py-1.5 rounded-lg shadow-xl max-w-xs whitespace-normal leading-relaxed select-none animate-in fade-in duration-150 pointer-events-none">
             {content}
-            <div className={`absolute w-0 h-0 border-solid ${getArrowClasses()}`} />
+            <div className={`absolute w-0 h-0 border-solid pointer-events-none ${getArrowClasses()}`} />
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import { FBDEditor } from '../components/fbd/FBDEditor';
 import { FBDDiagram, PLCVariable } from '../types';
 import { SaveMacroModal } from '../components/modals/SaveMacroModal';
 import { useStore } from '../store/useStore';
+import { setGlobalDragActive } from '../components/ui/Tooltip';
 import {
   Layers,
   Plus,
@@ -387,6 +388,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   }, [activeRungs, handleUpdateActiveRungs]);
 
   const handleDragStart = (e: any) => {
+    setGlobalDragActive(true);
     const { active } = e;
     if (active.data.current) {
       setActiveDragElement(active.data.current);
@@ -394,6 +396,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setGlobalDragActive(false);
     setActiveDragElement(null);
     const { active, over } = event;
     if (!over || !active.data.current) return;
@@ -425,6 +428,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
         handleDropElementOnBranch(rung.id, branchId, insertIndex, elementData);
       }
     }
+  };
+
+  const handleDragCancel = () => {
+    setGlobalDragActive(false);
+    setActiveDragElement(null);
   };
 
   // Quick insert current subroutine into main ladder
@@ -712,7 +720,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
           />
         </div>
       ) : (
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[snapCenterToCursor]}>
+        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel} modifiers={[snapCenterToCursor]}>
           <div className="flex-1 flex overflow-hidden">
             <ToolPalette
               onAddElement={handleAddElement}
