@@ -203,9 +203,11 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
   };
 
   // Save Subroutine
-  const handleSaveSubroutine = (e: React.FormEvent) => {
+  const handleSaveSubroutine = (e: React.FormEvent, openLadderEditor = false) => {
     e.preventDefault();
     if (!subName.trim()) return;
+
+    let targetSubId = editingSubId;
 
     if (editingSubId) {
       const existing = subroutines.find((s) => s.id === editingSubId);
@@ -220,8 +222,10 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
         });
       }
     } else {
+      const newSubId = `sub_${Date.now()}`;
+      targetSubId = newSubId;
       const newSub: Subroutine = {
-        id: `sub_${Date.now()}`,
+        id: newSubId,
         name: subName,
         codeIdentifier: subCodeId.replace(/\s+/g, '_') || `FC_${Date.now()}`,
         description: subDesc || 'Egyedi létradiagram alprogram',
@@ -262,6 +266,10 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
       onAddSubroutine(newSub);
     }
     setSubModalOpen(false);
+
+    if (openLadderEditor && targetSubId) {
+      onEditSubroutineInLadder(targetSubId);
+    }
   };
 
   // Subroutine param helpers
@@ -650,10 +658,10 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
                     <button
                       type="button"
                       onClick={() => onEditSubroutineInLadder(sub.id)}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all"
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
                     >
                       <FileCode className="w-3.5 h-3.5" />
-                      Szerkesztés Létrában
+                      Egyedi Létra Szerkesztése
                     </button>
 
                     {/* Insert into main ladder */}
@@ -1373,17 +1381,25 @@ export const ManagementView: React.FC<ManagementViewProps> = ({
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setModModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
                 >
                   Mégse
                 </button>
                 <button
+                  type="button"
+                  onClick={(e) => handleSaveSubroutine(e, true)}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                >
+                  <FileCode className="w-3.5 h-3.5" />
+                  <span>Mentés & Létra Szerkesztése</span>
+                </button>
+                <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold shadow-lg shadow-sky-500/30"
+                  className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 cursor-pointer"
                 >
                   Mentés
                 </button>
