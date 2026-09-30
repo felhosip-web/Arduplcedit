@@ -16,6 +16,7 @@ const testRungs: Rung[] = [
             id: 'e1',
             type: 'NO_CONTACT',
             category: 'contact',
+            name: 'Contact 1',
             pin: 'D2',
             variable: 'USED_VAR'
           }
@@ -27,6 +28,7 @@ const testRungs: Rung[] = [
         id: 'c1',
         type: 'COIL_SET',
         category: 'coil',
+        name: 'Coil 1',
         pin: 'D8',
         variable: 'M0'
       }

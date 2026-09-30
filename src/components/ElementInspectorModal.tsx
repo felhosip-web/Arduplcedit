@@ -8,6 +8,7 @@ import {
   PLCVariable,
   PLCArray
 } from '../types';
+import { normalizeCoilBinding } from '../utils/coilBindingUtils';
 import {
   X,
   Save,
@@ -114,7 +115,13 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData) {
-      onSave(formData);
+      let finalElement = { ...formData };
+      if (formData.category === 'coil') {
+        const binding = normalizeCoilBinding(formData, coilBindingMode === 'pin' ? 'pin' : 'var');
+        finalElement.pin = binding.pin;
+        finalElement.variable = binding.variable;
+      }
+      onSave(finalElement);
       onClose();
     }
   };
@@ -192,9 +199,8 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                 type="button"
                 onClick={() => {
                   setCoilBindingMode('pin');
-                  if (!formData.pin) {
-                    setFormData({ ...formData, pin: 'D8', variable: undefined });
-                  }
+                  const binding = normalizeCoilBinding(formData, 'pin', formData.pin || 'D8', undefined);
+                  setFormData({ ...formData, pin: binding.pin, variable: binding.variable });
                 }}
                 className={`flex-1 py-1.5 px-3 rounded-md font-medium transition-all flex items-center justify-center gap-1.5 ${
                   coilBindingMode === 'pin'
@@ -209,9 +215,8 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                 type="button"
                 onClick={() => {
                   setCoilBindingMode('flag');
-                  if (!formData.variable) {
-                    setFormData({ ...formData, variable: 'M0', pin: undefined });
-                  }
+                  const binding = normalizeCoilBinding(formData, 'var', undefined, formData.variable || 'M0');
+                  setFormData({ ...formData, pin: binding.pin, variable: binding.variable });
                 }}
                 className={`flex-1 py-1.5 px-3 rounded-md font-medium transition-all flex items-center justify-center gap-1.5 ${
                   coilBindingMode === 'flag'
@@ -251,7 +256,10 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     <button
                       key={mBit}
                       type="button"
-                      onClick={() => setFormData({ ...formData, variable: mBit, pin: undefined })}
+                      onClick={() => {
+                        const binding = normalizeCoilBinding(formData, 'var', undefined, mBit);
+                        setFormData({ ...formData, pin: binding.pin, variable: binding.variable });
+                      }}
                       className={`px-1.5 py-1 rounded text-xs font-mono font-medium border transition-colors ${
                         formData.variable === mBit
                           ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-[0_0_10px_rgba(245,158,11,0.4)]'
@@ -276,7 +284,10 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                       <button
                         key={sysVar.id}
                         type="button"
-                        onClick={() => setFormData({ ...formData, variable: sysVar.name, pin: undefined })}
+                        onClick={() => {
+                          const binding = normalizeCoilBinding(formData, 'var', undefined, sysVar.name);
+                          setFormData({ ...formData, pin: binding.pin, variable: binding.variable });
+                        }}
                         className={`p-2 rounded text-left text-xs border transition-colors flex flex-col justify-between ${
                           formData.variable === sysVar.name
                             ? 'bg-amber-500/20 border-amber-400 text-amber-200'
@@ -302,7 +313,10 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                 <input
                   type="text"
                   value={formData.variable || ''}
-                  onChange={(e) => setFormData({ ...formData, variable: e.target.value, pin: undefined })}
+                  onChange={(e) => {
+                    const binding = normalizeCoilBinding(formData, 'var', undefined, e.target.value);
+                    setFormData({ ...formData, pin: binding.pin, variable: binding.variable });
+                  }}
                   placeholder="pl. M1002 vagy SM_CUSTOM"
                   className="flex-1 bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono"
                   required
@@ -384,7 +398,10 @@ export const ElementInspectorModal: React.FC<ElementInspectorModalProps> = ({
                     <button
                       key={pin}
                       type="button"
-                      onClick={() => setFormData({ ...formData, pin, variable: undefined })}
+                      onClick={() => {
+                        const binding = normalizeCoilBinding(formData, 'pin', pin, undefined);
+                        setFormData({ ...formData, pin: binding.pin, variable: binding.variable });
+                      }}
                       className={`px-2 py-1.5 rounded text-xs font-mono font-medium border transition-colors ${
                         formData.pin === pin
                           ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold shadow-[0_0_10px_rgba(56,189,248,0.4)]'

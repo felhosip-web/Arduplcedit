@@ -73,8 +73,8 @@ export const UsedIOVariablesModal: React.FC<UsedIOVariablesModalProps> = ({
   const outputPinsList = Array.from(symbols.outputPins).sort();
   const analogPinsList = Array.from(symbols.analogPins).sort();
   const markerBitsList = Array.from(symbols.markerBits).sort((a, b) => {
-    const numA = parseInt(a.replace('M', ''), 10) || 0;
-    const numB = parseInt(b.replace('M', ''), 10) || 0;
+    const numA = parseInt(String(a).replace('M', ''), 10) || 0;
+    const numB = parseInt(String(b).replace('M', ''), 10) || 0;
     return numA - numB;
   });
 

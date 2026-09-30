@@ -70,14 +70,14 @@ export function extractUsedSymbols(
   fbdDiagramsList.forEach((fbd) => {
     fbd.blocks.forEach((block) => {
       if (block.properties?.variable) {
-        const v = block.properties.variable;
+        const v = block.properties.variable.trim();
         referencedSymbolNames.add(v);
-        if (v.startsWith('M')) markerBits.add(v);
-        if (v.startsWith('D')) {
-          if (block.type === 'INPUT') inputPins.add(v);
-          if (block.type === 'OUTPUT') outputPins.add(v);
+        if (/^M\d+$/i.test(v)) markerBits.add(v.toUpperCase());
+        if (/^D\d+$/i.test(v)) {
+          if (block.type === 'INPUT') inputPins.add(v.toUpperCase());
+          if (block.type === 'OUTPUT') outputPins.add(v.toUpperCase());
         }
-        if (v.startsWith('A')) analogPins.add(v);
+        if (/^A\d+$/i.test(v)) analogPins.add(v.toUpperCase());
       }
     });
   });
@@ -89,7 +89,7 @@ export function extractUsedSymbols(
 
     referencedSymbolNames.add(str);
 
-    if (/^M\d+$/i.test(str) || str.startsWith('M')) {
+    if (/^M\d+$/i.test(str)) {
       markerBits.add(str.toUpperCase());
     }
 

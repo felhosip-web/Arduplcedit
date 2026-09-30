@@ -229,8 +229,9 @@ export function resolvePhysicalPin(val?: string, variables: PLCVariable[] = []):
   if (!val) return undefined;
   const clean = normalizePin(val);
   if (!clean) return undefined;
-  // Skip external expander pins
+  // Skip external expander pins and internal marker / system variables
   if (clean.startsWith('EXP_') || clean.startsWith('PCF_')) return undefined;
+  if (/^M\d+$/i.test(clean) || clean.startsWith('SM_')) return undefined;
   // Check if clean matches standard Arduino digital/analog pin naming (D0..D53, A0..A15, SCL, SDA)
   if (/^(D\d+|A\d+|SCL|SDA|AREF)$/i.test(clean)) {
     return clean;
@@ -239,7 +240,7 @@ export function resolvePhysicalPin(val?: string, variables: PLCVariable[] = []):
   const varMatch = variables.find(v => v.name === val || v.id === val);
   if (varMatch?.mappedPin) {
     const mappedClean = normalizePin(varMatch.mappedPin);
-    if (mappedClean && !mappedClean.startsWith('EXP_') && !mappedClean.startsWith('PCF_')) {
+    if (mappedClean && !mappedClean.startsWith('EXP_') && !mappedClean.startsWith('PCF_') && !/^M\d+$/i.test(mappedClean)) {
       return mappedClean;
     }
   }
@@ -298,8 +299,16 @@ export function extractPinUsages(
       dir = 'bidirectional';
     }
 
-    // Primary pin check: either el.pin or el.variable (when el.variable holds/maps to a physical pin)
-    const primaryPin = resolvePhysicalPin(el.pin, variables) || resolvePhysicalPin(el.variable, variables);
+    // If the element is an internal flag coil/contact or bound to an M marker, ignore any stale physical pin
+    const isMarkerOrInternal =
+      el.type === 'INTERNAL_FLAG_COIL' ||
+      el.type === 'INTERNAL_FLAG_CONTACT' ||
+      (el.variable && (/^M\d+$/i.test(el.variable) || el.variable.startsWith('SM_')));
+
+    // Primary pin check: ignore pin if marker/internal
+    const primaryPin = isMarkerOrInternal
+      ? resolvePhysicalPin(el.variable, variables)
+      : resolvePhysicalPin(el.pin, variables) || resolvePhysicalPin(el.variable, variables);
 
     if (primaryPin) {
       registerUsage(primaryPin, {
