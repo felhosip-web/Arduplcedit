@@ -118,41 +118,78 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* File Menu */}
           <div className="relative" ref={fileMenuRef}>
             <button
-              onClick={() => { setFileMenuOpen(!fileMenuOpen); setEditMenuOpen(false); }}
+              onClick={() => { setFileMenuOpen(!fileMenuOpen); setEditMenuOpen(false); setExamplesOpen(false); }}
               className={`px-3 py-1.5 rounded-lg transition-colors hover:text-white ${fileMenuOpen ? 'bg-slate-800 text-white' : 'hover:bg-slate-800/50'}`}
             >
               Fájl
             </button>
             {fileMenuOpen && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-[100]">
+              <div className="absolute top-full left-0 mt-1 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-[100]">
                 <button
                   onClick={() => { onResetProject(); setFileMenuOpen(false); }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-xs"
                 >
                   <RefreshCw className="w-4 h-4 text-rose-400" /> Új Projekt
                 </button>
                 <div className="h-px bg-slate-700 my-1" />
-                <label className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white cursor-pointer flex items-center gap-2">
+
+                {/* Submenu Trigger for Példaprogramok / Példák */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setExamplesOpen(!examplesOpen)}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center justify-between text-xs font-semibold text-amber-300"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FolderOpen className="w-4 h-4 text-amber-400" />
+                      <span>Példaprogramok / Példák</span>
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${examplesOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {examplesOpen && (
+                    <div className="bg-slate-900 border-t border-b border-slate-700 p-1.5 space-y-1">
+                      {EXAMPLE_PROJECTS.map((ex) => (
+                        <button
+                          key={ex.id}
+                          type="button"
+                          onClick={() => {
+                            onLoadExample(ex);
+                            setExamplesOpen(false);
+                            setFileMenuOpen(false);
+                          }}
+                          className="w-full text-left p-2 rounded hover:bg-slate-800 text-slate-200 transition-colors flex flex-col"
+                        >
+                          <span className="font-semibold text-sky-300 text-xs">{ex.name}</span>
+                          <span className="text-[10px] text-slate-400 line-clamp-1">{ex.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="h-px bg-slate-700 my-1" />
+                <label className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white cursor-pointer flex items-center gap-2 text-xs">
                   <FolderOpen className="w-4 h-4" /> Importálás (JSON)
                   <input type="file" accept=".json" onChange={(e) => { handleFileChange(e); setFileMenuOpen(false); }} className="hidden" />
                 </label>
                 <button
                   onClick={() => { onExportProject(); setFileMenuOpen(false); }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-xs"
                 >
                   <Save className="w-4 h-4" /> Exportálás (JSON)
                 </button>
                 {onExportPlcOpenXml && (
                   <button
                     onClick={() => { onExportPlcOpenXml(); setFileMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-emerald-400"
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-emerald-400 text-xs"
                   >
                     <FileCode className="w-4 h-4" /> Exportálás (PLCopen XML)
                   </button>
                 )}
                 <button
                   onClick={() => { window.print(); setFileMenuOpen(false); }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-sky-400"
+                  className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-sky-400 text-xs"
                 >
                   <Printer className="w-4 h-4" /> Nyomtatás / PDF Export
                 </button>
@@ -161,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="h-px bg-slate-700 my-1" />
                     <button
                       onClick={() => { onOpenSaveLoadModal(); setFileMenuOpen(false); }}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-indigo-300"
+                      className="w-full text-left px-4 py-2 hover:bg-slate-700 hover:text-white flex items-center gap-2 text-indigo-300 text-xs"
                     >
                       <Save className="w-4 h-4" /> Projekt Kezelő (Slotok)
                     </button>
@@ -347,45 +384,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Tooltip>
         </div>
 
-        {/* Examples Dropdown */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setExamplesOpen(!examplesOpen)}
-            className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
-          >
-            <FolderOpen className="w-4 h-4 text-amber-400" />
-            <span>Példák</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </button>
-
-          {examplesOpen && (
-            <div className="absolute right-0 mt-1.5 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-[100] text-xs space-y-1">
-              <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Beépített PLC Példaprogramok
-              </div>
-              {EXAMPLE_PROJECTS.map((ex) => (
-                <button
-                  key={ex.id}
-                  type="button"
-                  onClick={() => {
-                    onLoadExample(ex);
-                    setExamplesOpen(false);
-                  }}
-                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 text-slate-200 transition-colors flex flex-col"
-                >
-                  <span className="font-semibold text-sky-300">{ex.name}</span>
-                  <span className="text-[11px] text-slate-400 line-clamp-1">{ex.description}</span>
-                  {ex.requiredLibraries.length > 0 && (
-                    <span className="text-[10px] text-cyan-400 font-mono mt-0.5">
-                      Lib: {ex.requiredLibraries.join(', ')}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Hardware Map Modal Trigger */}
         {onOpenHardwareMap && (
