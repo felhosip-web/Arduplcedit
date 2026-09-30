@@ -49,6 +49,7 @@ import { HelpModal } from './components/help/HelpModal';
 import { MobileBlockScreen } from './components/MobileBlockScreen';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { extractPinUsages, analyzePinConflicts, ARDUINO_UNO_PINS } from './utils/hardwareMapUtils';
+import { insertMacroRungs } from './utils/macroUtils';
 
 const INITIAL_SIMULATION_STATE: SimulationState = {
   isRunning: false,
@@ -707,13 +708,18 @@ export default function App() {
 
   // Macro Insertion handler
   const handleInsertMacroToLadder = (newRungs: Rung[], macroName: string) => {
-    // Append generated rungs to main loop rungs, renumbering appropriately
-    const startNum = rungs.length;
-    const renumbered = newRungs.map((r, i) => ({
-      ...r,
-      number: startNum + i
-    }));
-    setRungs((prev) => [...prev, ...renumbered]);
+    const result = insertMacroRungs(newRungs, {
+      activeSubroutineId,
+      subroutines,
+      effectiveMainRungs
+    });
+
+    if (result.updatedSubroutines) {
+      setSubroutines(result.updatedSubroutines);
+    }
+    if (result.updatedMainRungs) {
+      handleUpdateEffectiveMainRungs(result.updatedMainRungs);
+    }
   };
 
   // Custom Modules CRUD

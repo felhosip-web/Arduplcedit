@@ -224,6 +224,29 @@ export function normalizePin(pinStr?: string): string {
   return clean;
 }
 
+// Helper to resolve whether a string or variable binding represents a physical board pin
+export function resolvePhysicalPin(val?: string, variables: PLCVariable[] = []): string | undefined {
+  if (!val) return undefined;
+  const clean = normalizePin(val);
+  if (!clean) return undefined;
+  // Skip external expander pins and internal marker / system variables
+  if (clean.startsWith('EXP_') || clean.startsWith('PCF_')) return undefined;
+  if (/^M\d+$/i.test(clean) || clean.startsWith('SM_')) return undefined;
+  // Check if clean matches standard Arduino digital/analog pin naming (D0..D53, A0..A15, SCL, SDA)
+  if (/^(D\d+|A\d+|SCL|SDA|AREF)$/i.test(clean)) {
+    return clean;
+  }
+  // Check if val corresponds to a PLCVariable name or ID that has a mappedPin
+  const varMatch = variables.find(v => v.name === val || v.id === val);
+  if (varMatch?.mappedPin) {
+    const mappedClean = normalizePin(varMatch.mappedPin);
+    if (mappedClean && !mappedClean.startsWith('EXP_') && !mappedClean.startsWith('PCF_') && !/^M\d+$/i.test(mappedClean)) {
+      return mappedClean;
+    }
+  }
+  return undefined;
+}
+
 // -------------------------------------------------------------
 // EXTRACT ALL PIN USAGES ACROSS LADDER RUNGS, PROTOCOLS & CONFIGS
 // -------------------------------------------------------------
@@ -246,6 +269,11 @@ export function extractPinUsages(
     if (pin.startsWith('EXP_') || pin.startsWith('PCF_')) return;
 
     const list = pinMap.get(pin) || [];
+    // Prevent duplicate entries for exact same element and sourceType on the same pin
+    if (list.some(item => item.elementId === usage.elementId && item.sourceType === usage.sourceType)) {
+      return;
+    }
+
     list.push({
       ...usage,
       id: `${usage.sourceType}_${usage.elementId || Math.random().toString(36).substring(2, 7)}`
@@ -271,9 +299,19 @@ export function extractPinUsages(
       dir = 'bidirectional';
     }
 
-    // Main primary pin
-    if (el.pin) {
-      registerUsage(el.pin, {
+    // If the element is an internal flag coil/contact or bound to an M marker, ignore any stale physical pin
+    const isMarkerOrInternal =
+      el.type === 'INTERNAL_FLAG_COIL' ||
+      el.type === 'INTERNAL_FLAG_CONTACT' ||
+      (el.variable && (/^M\d+$/i.test(el.variable) || el.variable.startsWith('SM_')));
+
+    // Primary pin check: ignore pin if marker/internal
+    const primaryPin = isMarkerOrInternal
+      ? resolvePhysicalPin(el.variable, variables)
+      : resolvePhysicalPin(el.pin, variables) || resolvePhysicalPin(el.variable, variables);
+
+    if (primaryPin) {
+      registerUsage(primaryPin, {
         sourceType,
         elementId: el.id,
         elementName: el.name || el.type,
@@ -283,36 +321,76 @@ export function extractPinUsages(
         variableName: el.variable || el.targetVariable,
         locationLabel,
         subroutineName: subName,
-        details: `${el.name} (${el.type}) elem ${dir === 'input' ? 'bemenetként' : 'kimenetként'} vezérelve`
+        details: `${el.name || el.type} (${el.type}) elem ${dir === 'input' ? 'bemenetként' : 'kimenetként'} vezérelve`
       });
     }
 
-    // Secondary dedicated pins (Dallas, SPI CS, etc.)
-    if (el.dallasPin && el.dallasPin !== el.pin) {
-      registerUsage(el.dallasPin, {
-        sourceType,
-        elementId: el.id,
-        elementName: el.name || 'DS18B20 1-Wire',
-        elementType: 'DALLAS_READ',
-        direction: 'bidirectional',
-        variableName: el.dallasTargetVar || el.variable,
-        locationLabel,
-        subroutineName: subName,
-        details: 'Dallas DS18B20 1-Wire digitális hőmérséklet buszvonal'
-      });
+    // Secondary dedicated pins (Dallas, SPI CS, PID inputs/outputs, etc.)
+    if (el.dallasPin) {
+      const dallasResolved = resolvePhysicalPin(el.dallasPin, variables);
+      if (dallasResolved && dallasResolved !== primaryPin) {
+        registerUsage(dallasResolved, {
+          sourceType,
+          elementId: el.id,
+          elementName: el.name || 'DS18B20 1-Wire',
+          elementType: 'DALLAS_READ',
+          direction: 'bidirectional',
+          variableName: el.dallasTargetVar || el.variable,
+          locationLabel,
+          subroutineName: subName,
+          details: 'Dallas DS18B20 1-Wire digitális hőmérséklet buszvonal'
+        });
+      }
     }
 
-    if (el.spiCsPin && el.spiCsPin !== el.pin) {
-      registerUsage(el.spiCsPin, {
-        sourceType,
-        elementId: el.id,
-        elementName: el.name || 'SPI CS Láb',
-        elementType: el.type,
-        direction: 'output',
-        locationLabel,
-        subroutineName: subName,
-        details: 'SPI Chip Select (CS) aktív eszköz kiválasztó láb'
-      });
+    if (el.spiCsPin) {
+      const csResolved = resolvePhysicalPin(el.spiCsPin, variables);
+      if (csResolved && csResolved !== primaryPin) {
+        registerUsage(csResolved, {
+          sourceType,
+          elementId: el.id,
+          elementName: el.name || 'SPI CS Láb',
+          elementType: el.type,
+          direction: 'output',
+          locationLabel,
+          subroutineName: subName,
+          details: 'SPI Chip Select (CS) aktív eszköz kiválasztó láb'
+        });
+      }
+    }
+
+    if (el.pidInputVar) {
+      const pidIn = resolvePhysicalPin(el.pidInputVar, variables);
+      if (pidIn && pidIn !== primaryPin) {
+        registerUsage(pidIn, {
+          sourceType,
+          elementId: el.id,
+          elementName: el.name || 'PID Bemenet',
+          elementType: el.type,
+          direction: 'analog_in',
+          variableName: el.pidInputVar,
+          locationLabel,
+          subroutineName: subName,
+          details: 'PID Szabályzó PV Process Variable bemenet'
+        });
+      }
+    }
+
+    if (el.pidOutputVar) {
+      const pidOut = resolvePhysicalPin(el.pidOutputVar, variables);
+      if (pidOut && pidOut !== primaryPin) {
+        registerUsage(pidOut, {
+          sourceType,
+          elementId: el.id,
+          elementName: el.name || 'PID Kimenet',
+          elementType: el.type,
+          direction: 'pwm_out',
+          variableName: el.pidOutputVar,
+          locationLabel,
+          subroutineName: subName,
+          details: 'PID Szabályzó CV Control Output kimenet'
+        });
+      }
     }
   };
 
@@ -338,9 +416,6 @@ export function extractPinUsages(
   subroutines.forEach(sub => {
     (sub.rungs || []).forEach((rung, rIdx) => {
       const loc = `Alprogram [${sub.name}] Rung #${rIdx + 1}`;
-      (branch => {
-        (branch.elements || []).forEach(el => processElement(el, 'subroutine', loc, sub.name));
-      });
       (rung.branches || []).forEach(branch => {
         (branch.elements || []).forEach(el => processElement(el, 'subroutine', loc, sub.name));
       });

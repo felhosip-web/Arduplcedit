@@ -14,9 +14,11 @@ import {
   Zap,
   Activity,
   Radio,
-  Search
+  Search,
+  ListFilter
 } from 'lucide-react';
 import { Rung, ArduinoLibrary, ProtocolConfigs, Subroutine, PLCVariable, PLCConstant, PLCArray, InterruptsConfig } from '../types';
+import { UsedIOVariablesModal } from '../components/modals/UsedIOVariablesModal';
 
 interface CodeViewProps {
   code: string;
@@ -52,6 +54,7 @@ export const CodeView: React.FC<CodeViewProps> = ({
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSectionFilter, setActiveSectionFilter] = useState<'all' | 'setup' | 'loop' | 'subroutines'>('all');
+  const [isUsedModalOpen, setIsUsedModalOpen] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -169,6 +172,15 @@ export const CodeView: React.FC<CodeViewProps> = ({
               className="pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-sky-500 w-44 transition-all"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsUsedModalOpen(true)}
+            className="px-3 py-2 rounded-lg text-xs font-bold bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-300 border border-indigo-700/80 flex items-center gap-2 shadow-md transition-all cursor-pointer"
+          >
+            <ListFilter className="w-4 h-4 text-indigo-400" />
+            <span>Használt Változók & I/O</span>
+          </button>
 
           <button
             type="button"
@@ -324,6 +336,16 @@ export const CodeView: React.FC<CodeViewProps> = ({
             )}
           </div>
 
+          {/* Dedicated Modal Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setIsUsedModalOpen(true)}
+            className="w-full py-2.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <ListFilter className="w-4 h-4 text-indigo-400" />
+            <span>Használt I/O & Bitek (M, K, D)</span>
+          </button>
+
           {/* Fast Navigation Buttons */}
           <div className="pt-2 space-y-2">
             <button
@@ -393,6 +415,19 @@ export const CodeView: React.FC<CodeViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Used I/O & Variables Dedicated Modal */}
+      <UsedIOVariablesModal
+        isOpen={isUsedModalOpen}
+        onClose={() => setIsUsedModalOpen(false)}
+        rungs={rungs}
+        setupRungs={setupRungs}
+        subroutines={subroutines}
+        constants={constants}
+        variables={variables}
+        arrays={arrays}
+        interrupts={interrupts}
+      />
     </div>
   );
 };

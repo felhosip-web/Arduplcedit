@@ -76,6 +76,83 @@ export const DataManager: React.FC<DataManagerProps> = ({
   const [arrValuesStr, setArrValuesStr] = useState<string>('0, 0, 0, 0');
   const [arrDesc, setArrDesc] = useState('');
 
+  // --- Constant Helper & Validation ---
+  const getDefaultValueForType = (type: PLCConstant['type']): string => {
+    switch (type) {
+      case 'bool':
+        return 'true';
+      case 'float':
+        return '0.0';
+      case 'int':
+      case 'uint16_t':
+      case 'unsigned long':
+      default:
+        return '0';
+    }
+  };
+
+  const validateConstantValue = (type: PLCConstant['type'], value: string): string | null => {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return 'Az érték megadása kötelező!';
+    }
+
+    if (type === 'bool') {
+      if (trimmed !== 'true' && trimmed !== 'false' && trimmed !== '1' && trimmed !== '0') {
+        return 'Érvénytelen logikai érték! Válasszon "true" vagy "false" értéket.';
+      }
+      return null;
+    }
+
+    if (type === 'float') {
+      const num = Number(trimmed);
+      if (isNaN(num)) {
+        return 'Érvénytelen lebegőpontos szám! (pl. 12.34 vagy -5.0)';
+      }
+      return null;
+    }
+
+    if (type === 'int') {
+      if (!/^-?\d+$/.test(trimmed)) {
+        return 'Érvénytelen 16 bites egész szám! (Egész szám legyen, pl. -100 vagy 300)';
+      }
+      const num = parseInt(trimmed, 10);
+      if (num < -32768 || num > 32767) {
+        return 'Az "int" típus értéke -32768 és 32767 között kell legyen!';
+      }
+      return null;
+    }
+
+    if (type === 'uint16_t') {
+      if (!/^\d+$/.test(trimmed)) {
+        return 'Érvénytelen uint16_t szám! (Pozitív egész szám legyen)';
+      }
+      const num = parseInt(trimmed, 10);
+      if (num < 0 || num > 65535) {
+        return 'A "uint16_t" típus értéke 0 és 65535 között kell legyen!';
+      }
+      return null;
+    }
+
+    if (type === 'unsigned long') {
+      if (!/^\d+$/.test(trimmed)) {
+        return 'Érvénytelen unsigned long szám! (Pozitív egész szám legyen)';
+      }
+      const num = Number(trimmed);
+      if (num < 0 || num > 4294967295) {
+        return 'Az "unsigned long" típus értéke 0 és 4294967295 között kell legyen!';
+      }
+      return null;
+    }
+
+    return null;
+  };
+
+  const handleConstTypeChange = (newType: PLCConstant['type']) => {
+    setConstType(newType);
+    setConstValue(getDefaultValueForType(newType));
+  };
+
   // --- Handlers: Constant ---
   const handleOpenNewConst = () => {
     setEditingConstId(null);
@@ -99,13 +176,19 @@ export const DataManager: React.FC<DataManagerProps> = ({
     e.preventDefault();
     if (!constName.trim()) return;
 
-    let parsedVal: number | boolean | string = constValue;
+    const validationErr = validateConstantValue(constType, constValue);
+    if (validationErr) {
+      alert(`Hiba: ${validationErr}`);
+      return;
+    }
+
+    let parsedVal: number | boolean | string = constValue.trim();
     if (constType === 'int' || constType === 'uint16_t' || constType === 'unsigned long') {
-      parsedVal = parseInt(constValue, 10) || 0;
+      parsedVal = parseInt(constValue.trim(), 10) || 0;
     } else if (constType === 'float') {
-      parsedVal = parseFloat(constValue) || 0.0;
+      parsedVal = parseFloat(constValue.trim()) || 0.0;
     } else if (constType === 'bool') {
-      parsedVal = constValue.toLowerCase() === 'true' || constValue === '1';
+      parsedVal = constValue.trim().toLowerCase() === 'true' || constValue.trim() === '1';
     }
 
     if (editingConstId) {
@@ -630,7 +713,7 @@ export const DataManager: React.FC<DataManagerProps> = ({
                   <label className="block font-medium text-slate-300 mb-1">Adattípus</label>
                   <select
                     value={constType}
-                    onChange={(e) => setConstType(e.target.value as any)}
+                    onChange={(e) => handleConstTypeChange(e.target.value as any)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-slate-200 font-mono"
                   >
                     <option value="int">int (16-bit)</option>
@@ -642,14 +725,40 @@ export const DataManager: React.FC<DataManagerProps> = ({
                 </div>
                 <div>
                   <label className="block font-medium text-slate-300 mb-1">Érték</label>
-                  <input
-                    type="text"
-                    required
-                    value={constValue}
-                    onChange={(e) => setConstValue(e.target.value)}
-                    placeholder="pl. 65 vagy 115200"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-emerald-300 font-mono text-xs"
-                  />
+                  {constType === 'bool' ? (
+                    <select
+                      value={constValue.toLowerCase() === 'true' || constValue === '1' ? 'true' : 'false'}
+                      onChange={(e) => setConstValue(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-emerald-300 font-mono text-xs"
+                    >
+                      <option value="true">true (IGAZ / 1)</option>
+                      <option value="false">false (HAMIS / 0)</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={constValue}
+                      onChange={(e) => setConstValue(e.target.value)}
+                      placeholder={
+                        constType === 'float'
+                          ? 'pl. 65.5'
+                          : constType === 'unsigned long'
+                          ? 'pl. 100000'
+                          : 'pl. 100'
+                      }
+                      className={`w-full bg-slate-800 border rounded-lg px-3 py-2 text-emerald-300 font-mono text-xs ${
+                        validateConstantValue(constType, constValue)
+                          ? 'border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500'
+                          : 'border-slate-700'
+                      }`}
+                    />
+                  )}
+                  {validateConstantValue(constType, constValue) && (
+                    <p className="mt-1 text-[11px] text-rose-400 font-sans">
+                      {validateConstantValue(constType, constValue)}
+                    </p>
+                  )}
                 </div>
               </div>
               <div>

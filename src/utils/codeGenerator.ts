@@ -14,6 +14,7 @@ import {
   FBDDiagram,
   FBDBlock
 } from '../types';
+import { extractUsedSymbols } from './symbolExtractor';
 
 export function generateArduinoCode(
   rungs: Rung[],
@@ -354,14 +355,27 @@ export function generateArduinoCode(
   }
   lines.push('');
 
+  // Filter constants, variables, arrays using symbolExtractor
+  const usedSymbols = extractUsedSymbols(
+    rungs,
+    setupRungs,
+    subroutines,
+    tasks,
+    constants,
+    variables,
+    arrays,
+    stateMachines,
+    interrupts
+  );
+
   // -------------------------------------------------------------
   // CONSTANTS (KONSTANSOK)
   // -------------------------------------------------------------
   lines.push('// --- PLC KONSTANSOK (CONSTANTS) ---');
-  if (constants.length === 0) {
-    lines.push('// (Nincsenek felhasználói konstansok definiálva)');
+  if (usedSymbols.usedConstants.length === 0) {
+    lines.push('// (Nincsenek aktív használatban lévő konstansok)');
   } else {
-    constants.forEach(c => {
+    usedSymbols.usedConstants.forEach(c => {
       const desc = c.description ? ` // ${c.description}` : '';
       if (c.type === 'string') {
         lines.push(`const char* const ${c.name} = "${c.value}";${desc}`);
@@ -390,10 +404,10 @@ export function generateArduinoCode(
   }
 
   lines.push('// --- PLC VÁLTOZÓK (GLOBAL VARIABLES) ---');
-  if (variables.length === 0) {
-    lines.push('// (Nincsenek egyedi változók definiálva)');
+  if (usedSymbols.usedVariables.length === 0) {
+    lines.push('// (Nincsenek aktív használatban lévő változók)');
   } else {
-    variables.forEach(v => {
+    usedSymbols.usedVariables.forEach(v => {
       const isVol = v.isVolatile ||
         (interrupts?.int0.enabled && interrupts.int0.targetVariable === v.name) ||
         (interrupts?.int1.enabled && interrupts.int1.targetVariable === v.name) ||
@@ -418,10 +432,10 @@ export function generateArduinoCode(
   // ARRAYS (TÖMBÖK)
   // -------------------------------------------------------------
   lines.push('// --- PLC TÖMBÖK (ARRAYS) ---');
-  if (arrays.length === 0) {
-    lines.push('// (Nincsenek tömbök definiálva)');
+  if (usedSymbols.usedArrays.length === 0) {
+    lines.push('// (Nincsenek aktív használatban lévő tömbök)');
   } else {
-    arrays.forEach(arr => {
+    usedSymbols.usedArrays.forEach(arr => {
       const desc = arr.description ? ` // ${arr.description}` : '';
       const valsFormatted = arr.values.map(val => (arr.elementType === 'float' && !String(val).includes('.') ? `${val}.0f` : String(val))).join(', ');
       lines.push(`${arr.elementType} ${arr.name}[${arr.size}] = { ${valsFormatted} };${desc}`);
